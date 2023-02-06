@@ -5,6 +5,10 @@ import copy
 import collections
 import gym
 import ptan
+import cv2
+
+#basic networks
+
 class DQN(nn.Module):
     def __init__(self, input_shape, n_actions):
         super().__init__()
@@ -34,6 +38,7 @@ class DQN(nn.Module):
         #print(conv_out.shape)
         return self.fc(conv_out)
 
+#target networks
 
 class TargetNet:
     """
@@ -60,7 +65,7 @@ class TargetNet:
         self.target_model.load_state_dict(tgt_state)
 
 
-
+#preprocessing
 
 class preprocessor:
     # process data from environment to any compatible type 
@@ -93,6 +98,7 @@ class FloatTensor_preprocessor(preprocessor):
         return super().__call__(states)
 
 
+#Agents
 
 class BaseAgent:
 
@@ -123,7 +129,7 @@ class DQNAgent(BaseAgent):
         actions = self.selector(q)
         return actions
     
-
+#Selection
 
 class ActionSelector:
 
@@ -157,9 +163,11 @@ class EpsilonGreedyActionSelector(ActionSelector):
 
 Experience = collections.namedtuple('Experience', ['state', 'action', 'reward', 'done'])
 
+
 def FirstOnlyResetSelector(obs):
     return obs[0]
 
+#Experience
 
 class ExperienceSource:
 
@@ -378,7 +386,7 @@ class ExperienceReplayBuffer:
             entry = next(self.experience_source_iter)
             self._add(entry)
 
-
+#batch handeling
 
 def unpack_batch(batch:list[ptan.experience.ExperienceFirstLast]): #List was undefined
     states, actions, rewards, dones, last_states = [],[],[],[],[]
@@ -397,3 +405,28 @@ def unpack_batch(batch:list[ptan.experience.ExperienceFirstLast]): #List was und
         np.array(rewards, dtype=np.float32), \
         np.array(dones, dtype=np.uint8), \
         np.array(last_states, copy=False)
+
+
+#rendering
+
+def playandsave_episode(render_source):
+    assert type(render_source) == ptan.experience.ExperienceSource
+    print("Warning: Possible Reduced Frames, Make sure to use special wrapper for frame-skip")
+    video = []
+    for x in render_source:
+        video.append(x[0][0])
+        if x[0][3]:
+           print("done")
+           break
+    return np.array(video, dtype=np.float32).transpose(0,2,3,1)
+
+def create_video(frames, output_filename):
+    height, width, channels = frames[0].shape
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # codec for MP4 video
+    video = cv2.VideoWriter(output_filename, fourcc, 10.0, (width, height))
+    for frame in frames:
+        frame = (frame * 255).astype(np.uint8)  # scale values from 0-1 to 0-255
+        video.write(frame)
+    video.release()
+
+    
