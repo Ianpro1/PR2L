@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 import torch
+#import ptan_copy as ptan
 import ptan
 import common
 import atari_wrappers
@@ -19,13 +20,13 @@ env = atari_wrappers.reshapeWrapper(env)
 env = atari_wrappers.ScaledFloatFrame(env)
 env = atari_wrappers.oldWrapper(env)
 env = atari_wrappers.MaxAndSkipEnv(env)
-
+env = atari_wrappers.DumbRewardWrapper(env)
 
 PATH = "Breakout-v4.pt"
 device = "cpu"
 
 net = common.DQN((3, 210,160), env.action_space.n).to(device)
-tgt_net = common.TargetNet(net)
+tgt_net = ptan.agent.TargetNet(net)
 
 '''agent = common.DQNAgent(net, selector = common.EpsilonGreedyActionSelector(), device=device)
 exp_source = common.ExperienceSourceFirstLast(env, agent, gamma=GAMMA)'''
@@ -37,16 +38,23 @@ exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=GAMMA)
 buffer = ptan.experience.ExperienceReplayBuffer(exp_source, buffer_size=REPLAY_SIZE)
 optimizer = torch.optim.Adam(net.parameters())
 
-idx = 0
-id_dones = 0
 
-    
+for i, exp in enumerate(exp_source):
+    exp = list(exp)
+    exp[0]=[]
+    exp[-1] = []
+    print(exp, "idx-> %d" %i)
 
+    if i > 5:
+        break
+
+'''
 #last call or during training
 torch.save(net.state_dict(), PATH)
 
 #render_function
 render_source = ptan.experience.ExperienceSource(env, agent)
 print(type(render_source) == ptan.experience.ExperienceSource)
-video = common.playandsave_episode(exp_source)
-common.create_video(video, "output.mp4")
+video = common.playandsave_episode(render_source=render_source)
+common.create_video(video, "output.mp4")'''
+

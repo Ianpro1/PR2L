@@ -68,6 +68,18 @@ class oldWrapper(gym.Wrapper):
         obs, reward, done, info, _ = self.env.step(action)
         return obs, reward, done, info
 
+class DumbRewardWrapper(gym.Wrapper):
+    def __init__(self, env=None):
+        super().__init__(env)
+
+    def reset(self):
+        return self.env.reset()
+
+    def step(self, x):
+        elem = self.env.step(x)
+        elem = list(elem)
+        elem[1] = 1.0
+        return elem
 
 # well known wrappers (Some are incompatible with gym >= 0.26 and need fix due to outdated gym observations which used to return 4 objects)
 
