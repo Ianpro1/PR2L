@@ -25,7 +25,7 @@ env = atari_wrappers.MaxAndSkipEnv(env)
 
 
 PATH = "Breakout-v4.pt"
-device = "cuda"
+device = "cpu"
 obs_shape = (3,210,160)
 net = common.DQN(obs_shape, env.action_space.n).to(device)
 print(net)
@@ -49,7 +49,7 @@ def unpack_batch(batch, obs_shape): # return states, actions, calculated tgt_q_v
     actions = []
     last_states = []
     dones = []
-    for exp in batch:
+    for exp in batch: # make it in 2 for loops for if statement
         states.append(exp.state)
         rewards.append(exp.reward)
         actions.append(exp.action)
@@ -95,7 +95,7 @@ while True:
 
     last_states = preprocessor(last_states).to(device)
     
-    with torch.no_grad():
+    with torch.no_grad(): #try to use numpy instead
         tgt_q = net(last_states)
         tgt_actions = torch.argmax(tgt_q, 1)
         tgt_actions = tgt_actions.unsqueeze(1)
