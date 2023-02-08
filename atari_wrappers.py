@@ -133,6 +133,14 @@ class MaxAndSkipEnv(gym.Wrapper):
 
 
 class ProcessFrame84(gym.ObservationWrapper):
+    '''Scaling every frame down from 210×160, with three color frames, to a single-color 
+84×84 image. Different approaches are possible. For example, the DeepMind 
+paper describes this transformation as taking the Y-color channel from the 
+YCbCr color space and then rescaling the full image to an 84×84 resolution. 
+Some other researchers do grayscale transformation, cropping non-relevant 
+parts of the image and then scaling down. In the Baselines repository (and in 
+the following example code), the latter approach is used'''
+
     def __init__(self, env=None):
         super(ProcessFrame84, self).__init__(env)
         self.observation_space = gym.spaces.Box(low=0, high=255, shape=(84, 84, 1), dtype=np.uint8)

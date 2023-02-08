@@ -55,7 +55,8 @@ class preprocessor:
 
 class ndarray_preprocessor(preprocessor):
     def __call__(self, states):
-        states = np.array(states)
+        
+        states = np.array(states, copy=False)
         return super().__call__(states)
 
 class VariableTensor_preprocessor(preprocessor):

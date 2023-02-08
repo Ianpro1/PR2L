@@ -174,6 +174,7 @@ class ExperienceSourceFirstLast(ExperienceSource):
 
     def __iter__(self):
         for exp in super(ExperienceSourceFirstLast, self).__iter__():
+            
             if exp[-1].done and len(exp) <= self.steps:
                 last_state = None
                 elems = exp
