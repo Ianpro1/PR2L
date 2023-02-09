@@ -26,7 +26,12 @@ LEARNING_RATE = 1e-4
 '''def calc_sin_epsilon(x):
     return (2.0*math.cos(x/20.)+3.)/100.'''
 
+"""
+POSSIBLE IMPROVEMENTS: wrapping the environment observation to show movement between frameskip,
+press fire at start of episode,
 
+
+"""
 
 
 parameters = {
@@ -41,14 +46,22 @@ parameters = {
 }
 
 env = gym.make(ENV_NAME)
-env = atari_wrappers.ProcessFrame84(env)
-env = atari_wrappers.reshapeWrapper(env) # ->prefered over reshape argument in ProcessFrame84
-env = atari_wrappers.ScaledFloatFrame(env)
-env = atari_wrappers.oldWrapper(env)
-env = atari_wrappers.MaxAndSkipEnv(env)
+#env = atari_wrappers.FireResetEnv(env)
 
+env = atari_wrappers.ProcessFrame84(env)
+env = atari_wrappers.reshapeWrapper(env)
+env = atari_wrappers.BufferWrapper(env, 3)
+env = atari_wrappers.oldWrapper(env)
+#env = atari_wrappers.MaxAndSkipEnv(env)
+#env = atari_wrappers.ScaledFloatFrame(env)
+obs = env.reset()
+for x in range(100):
+    obs = env.step(np.random.choice(env.action_space.n))
+    #plt.imshow(obs[0], cmap='gray')#.transpose(1,2,0))
+    plt.imshow(obs[0].transpose(1,2,0), cmap='gray')
+    plt.show()
 PATH = "Breakout-v4.pt"
-device = "cuda"
+device = "cpu"
 obs_shape = env.observation_space.shape
 
 
@@ -63,8 +76,8 @@ exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=GAMMA)
 buffer = ptan.experience.ExperienceReplayBuffer(exp_source, buffer_size=REPLAY_SIZE)
 optimizer = torch.optim.Adam(net.parameters(), lr=LEARNING_RATE)
 
-net.load_state_dict(torch.load("Breakout-v4/2023-02-09/modelsave33_(08-31).pt"))
-if False:
+net.load_state_dict(torch.load("gitmodelsaves/gitmodelsaves/modelsave38_(08-33).pt"))
+if True:
     renv = gym.make(ENV_NAME)
     renv = atari_wrappers.RenderWrapper(renv)
     renv = atari_wrappers.ProcessFrame84(renv)
@@ -78,7 +91,7 @@ if False:
     common.playandsave_episode(render_source, renv)
     video = renv.pop_frames()
     print(video.shape)
-    common.create_video(video, "output.mp4")
+    common.create_video(video, "output2.mp4")
     raise MemoryError
 
 def unpack_batch(batch, obs_shape): # return states, actions, calculated tgt_q_v = r + tgt_net(last_state)*GAMMA
