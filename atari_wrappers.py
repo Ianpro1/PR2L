@@ -81,6 +81,22 @@ class DumbRewardWrapper(gym.Wrapper):
         elem[1] = 1.0
         return elem
 
+class RenderWrapper(gym.Wrapper):
+    def __init__(self, env=None):
+        super().__init__(env)
+        self.frames = []
+
+    def step(self, action):
+        obs, rewards, done, info, _ = self.env.step(action)
+        self.frames.append(obs)
+        return obs, rewards, done, info, _
+
+    def pop_frames(self):
+        frames = self.frames.copy()
+        self.frames.clear()
+        return np.array(frames)
+
+
 # well known wrappers (Some are incompatible with gym >= 0.26 and need fix due to outdated gym observations which used to return 4 objects)
 
 class FireResetEnv(gym.Wrapper):
@@ -141,15 +157,16 @@ Some other researchers do grayscale transformation, cropping non-relevant
 parts of the image and then scaling down. In the Baselines repository (and in 
 the following example code), the latter approach is used'''
 
-    def __init__(self, env=None):
+    def __init__(self, env=None, fReshape=(84,84,1)):
         super(ProcessFrame84, self).__init__(env)
         self.observation_space = gym.spaces.Box(low=0, high=255, shape=(84, 84, 1), dtype=np.uint8)
+        self.fReshape = fReshape
 
     def observation(self, obs):
-        return ProcessFrame84.process(obs)
+        return ProcessFrame84.process(obs, self.fReshape)
 
     @staticmethod
-    def process(frame):
+    def process(frame, reshape):
         if frame.size == 210 * 160 * 3:
             img = np.reshape(frame, [210, 160, 3]).astype(np.float32)
         elif frame.size == 250 * 160 * 3:
@@ -159,7 +176,7 @@ the following example code), the latter approach is used'''
         img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
         resized_screen = cv2.resize(img, (84, 110), interpolation=cv2.INTER_AREA)
         x_t = resized_screen[18:102, :]
-        x_t = np.reshape(x_t, [84, 84, 1])
+        x_t = np.reshape(x_t, reshape)
         return x_t.astype(np.uint8)
 
 

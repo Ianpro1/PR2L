@@ -5,7 +5,8 @@ import collections
 import gym
 import ptan
 import cv2
-
+import os
+import datetime
 #basic networks
 
 class DQN(nn.Module):
@@ -92,27 +93,59 @@ def unpack_batch(batch:list[ptan.experience.ExperienceFirstLast]): #List was und
         np.array(dones, dtype=np.uint8), \
         np.array(last_states, copy=False)
 
+#model save
+class ModelBackup:
+    def __init__(self, root, net, notify=True):
+        self.dateroot = str(datetime.datetime.now().date())
+        self.date = datetime.datetime.now().strftime("(%H-%M)")
+        
+        self.path = os.path.join(root, self.dateroot)
+        if os.path.isdir(self.path) ==False:
+            os.makedirs(self.path)
+
+        self.net = net
+        self.root = root
+        self.notify=notify
+        self.id = 0
+            
+    def save(self, parameters=None):
+        name = "modelsave%d_"%self.id + self.date + ".pt"
+        torch.save(self.net.state_dict(), os.path.join(self.path, name))
+        if parameters:
+            assert isinstance(parameters, dict)
+            with open(os.path.join(self.path, "parameters%d_"%self.id + self.date + ".txt"), 'w') as f:
+                f.write(str(parameters))
+
+        if self.notify:
+            print("created " + name)
+        self.id += 1
 
 #rendering
-
-def playandsave_episode(render_source):
+def playandsave_episode(render_source, env):
     assert type(render_source) == ptan.experience.ExperienceSource
     print("Warning: Possible Reduced Frames, Make sure to use special wrapper for frame-skip")
-    video = []
-    for x in render_source:
-        video.append(x[0][0])
-        if x[0][3]:
+    for i, x in enumerate(render_source):
+        print(i)
+        if x[0][3] or i>2000:
            print("done")
            break
-    return np.array(video, dtype=np.float32).transpose(0,2,3,1)
 
 def create_video(frames, output_filename):
     height, width, channels = frames[0].shape
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # codec for MP4 video
-    video = cv2.VideoWriter(output_filename, fourcc, 10.0, (width, height))
+    video = cv2.VideoWriter(output_filename, fourcc, 30.0, (width, height))
     for frame in frames:
         frame = (frame * 255).astype(np.uint8)  # scale values from 0-1 to 0-255
         video.write(frame)
     video.release()
 
+'''class Renderer:
+    def __init__(self, env):
+        self.env = env
+
+    def sample(self.count):
+        ''' 
+
+
+    
     
