@@ -9,18 +9,25 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 import matplotlib.pyplot as plt
 from collections import namedtuple
-
+import math
 
 
 ENV_NAME = "Breakout-v4"
-EPSILON_DECAY_LAST_FRAME = 150000
-EPSILON_START = 1.0
+EPSILON_DECAY_LAST_FRAME = 3000000
+EPSILON_START = 0.01 #make epsilon a sinusoidal function
 EPSILON_FINAL = 0.01
 GAMMA = 0.99
 REPLAY_SIZE = 10000
 TGT_NET_SYNC = 1000
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-4
+
+
+'''def calc_sin_epsilon(x):
+    return (2.0*math.cos(x/20.)+3.)/100.'''
+
+
+
 
 parameters = {
     "epsilon":EPSILON_START,
@@ -56,8 +63,8 @@ exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=GAMMA)
 buffer = ptan.experience.ExperienceReplayBuffer(exp_source, buffer_size=REPLAY_SIZE)
 optimizer = torch.optim.Adam(net.parameters(), lr=LEARNING_RATE)
 
-
-if True:
+net.load_state_dict(torch.load("Breakout-v4/2023-02-09/modelsave33_(08-31).pt"))
+if False:
     renv = gym.make(ENV_NAME)
     renv = atari_wrappers.RenderWrapper(renv)
     renv = atari_wrappers.ProcessFrame84(renv)
@@ -65,7 +72,7 @@ if True:
     renv = atari_wrappers.ScaledFloatFrame(renv)
     renv = atari_wrappers.oldWrapper(renv)
     renv = atari_wrappers.MaxAndSkipEnv(renv)
-    net.load_state_dict(torch.load("Breakout-v4_firstrun.pt"))
+    
     r_agent = ptan.agent.DQNAgent(net, action_selector=ptan.actions.EpsilonGreedyActionSelector(epsilon=0.1), device=device, preprocessor=preprocessor)
     render_source = ptan.experience.ExperienceSource(renv, r_agent)
     common.playandsave_episode(render_source, renv)
@@ -115,12 +122,12 @@ while True:
         ts_frame = idx
         ts = time.time()
         episode+=1
-        #print("idx %d, steps %d, episode %d done, reward=%.3f rewards, epsilon=%.2f, FPS %.3f" %(idx,steps,episode, rewards, selector.epsilon, speed))
+        print("idx %d, steps %d, episode %d done, reward=%.3f rewards, epsilon=%.4f, FPS %.3f" %(idx,steps,episode, rewards, selector.epsilon, speed))
         writer.add_scalar("episodes", episode, idx)
         writer.add_scalar("rewards", rewards, idx)
         writer.add_scalar("epsilon", selector.epsilon, idx)
         writer.add_scalar("FPS", speed, idx)
-        solved = rewards > 150
+        solved = rewards > 350
         if solved:
             print("done in %d episodes" % episode)
             parameters["epsilon"] = selector.epsilon
@@ -155,12 +162,13 @@ while True:
     loss.backward()
     optimizer.step()
 
-    selector.epsilon = max(EPSILON_FINAL, EPSILON_START - idx/EPSILON_DECAY_LAST_FRAME)
-
+    
+    #selector.epsilon = max(EPSILON_FINAL, EPSILON_START - idx / EPSILON_DECAY_LAST_FRAME)
+    #selector.epsilon = calc_sin_epsilon(episode)
     if idx % TGT_NET_SYNC ==0:
         tgt_net.sync()
     
-    if idx % 10000 == 0:
+    if idx % 50000 == 0:
         parameters["epsilon"] = selector.epsilon
         backup.save(parameters=parameters)
     

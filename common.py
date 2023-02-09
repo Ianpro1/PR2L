@@ -119,6 +119,7 @@ class ModelBackup:
         if self.notify:
             print("created " + name)
         self.id += 1
+        self.date = self.date = datetime.datetime.now().strftime("(%H-%M)")
 
 #rendering
 def playandsave_episode(render_source, env):
