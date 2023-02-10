@@ -51,6 +51,7 @@ class ExperienceSource:
         env_lens = []
         for env in self.pool:
             obs = env.reset()
+            print("shape", obs.shape)
             # if the environment is vectorized, all it's output is lists of results.
             # Details are here: https://github.com/openai/universe/blob/master/doc/env_semantics.rst
             if self.vectorized:
@@ -58,7 +59,7 @@ class ExperienceSource:
                 states.extend(obs)
             else:
                 obs_len = 1
-                states.append(obs)
+                states.append(obs) #append obs
             env_lens.append(obs_len)
 
             for _ in range(obs_len):
@@ -72,13 +73,14 @@ class ExperienceSource:
             actions = [None] * len(states)
             states_input = []
             states_indices = []
-            for idx, state in enumerate(states):
+            for idx, state in enumerate(states): #states array
                 if state is None:
                     actions[idx] = self.pool[0].action_space.sample()  # assume that all envs are from the same family
                 else:
                     states_input.append(state)
                     states_indices.append(idx)
             if states_input:
+                print("states_actions", len(states_input), states_input[0].shape)  #source of error
                 states_actions, new_agent_states = self.agent(states_input, agent_states)
                 for idx, action in enumerate(states_actions):
                     g_idx = states_indices[idx]

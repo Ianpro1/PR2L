@@ -9,6 +9,20 @@ import os
 import datetime
 #basic networks
 
+class DenseDQN(nn.Module):
+    def __init__(self, input ,HIDDEN, output):
+        super().__init__()
+
+        self.net = nn.Sequential(
+            nn.Linear(input, HIDDEN),
+            nn.ReLU(),
+            nn.Linear(HIDDEN, output)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
 class DQN(nn.Module):
     def __init__(self, input_shape, n_actions):
         super().__init__()
@@ -69,6 +83,7 @@ class VariableTensor_preprocessor(preprocessor):
 class FloatTensor_preprocessor(preprocessor):
     def __call__(self, states):
         assert isinstance(states, np.ndarray)
+        #print(states)
         states = torch.FloatTensor(states)
         return super().__call__(states)
 

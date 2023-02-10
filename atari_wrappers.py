@@ -13,7 +13,7 @@ class reshapeWrapper(gym.ObservationWrapper):
         assert isinstance(env.observation_space, gym.spaces.Box)
         obs_shape = np.array(env.observation_space.shape)
         self.observation_space = gym.spaces.Box(low=0.0, high=255., shape=obs_shape[[2,0,1]], dtype=np.float32)
-        print("reshape", self.observation_space)
+        
     def observation(self, obs):
         return obs.transpose(2,0,1)
 
@@ -21,24 +21,13 @@ class reshapeWrapper(gym.ObservationWrapper):
 class oldStepWrapper(gym.Wrapper):
     """for outdated wrappers that expects 4 values to unpack from env.step() method,
     Note: ObservationWrappers should be applied first else -> error expected 5 got 4"""
-    def __init__(self, env=None, record_count=None):
+    def __init__(self, env=None, ):
         super().__init__(env)
-        if record_count is not None:
-            self.recorder = collections.deque(maxlen=record_count)
-        else:
-            self.recorder = None
 
     def step(self, action):
-        obs, reward, done, info, extra = self.env.step(action)
-        if self.recorder is not None:
-            self.recorder.append(extra)
+        obs, reward, done, info, _ = self.env.step(action)
         return obs, reward, done, info
-        
-    def reset(self):
-        obs = self.env.reset()
-        if self.recorder is not None:
-            self.recorder.clear()
-        return obs
+
 
 class oldResetWrapper(gym.Wrapper):
     def __init__(self, env, rrecord_count=None):
@@ -96,10 +85,42 @@ class RenderWrapper(gym.Wrapper):
         self.frames.clear()
         return np.array(frames)
 
+class SingleLifeWrapper(gym.Wrapper):
+    #instead of returning fake observation, try doing firestep for the agent
+    def __init__(self, env=None):
+        super().__init__(env)
+        self.lives = 0
+        self.last = None
+        self.last_obs = None
+    def reset(self):
+        if self.lives == 0:
+            obs = self.env.reset()
+            self.lives = 5
+            self.last = 5
+            return obs
+        else:
+            #this fails after 2 consecutives resets
+            return (self.last_obs[0], self.last_obs[4])
+
+    def step(self, action):
+        obs, r, done, info, lives = self.env.step(action)
+        self.lives = lives["lives"]
+        #print(self.lives)
+        if self.last > self.lives:
+            
+            self.last = self.lives
+            self.last_obs = obs
+            return (obs, r, True, info, lives)
+
+        self.last = self.lives
+        return (obs, r, done, info, lives)
+
+
 
 # well known wrappers (Some are incompatible with gym >= 0.26 and need fix due to outdated gym observations which used to return 4 objects)
 
 class FireResetEnv(gym.Wrapper):
+    #early wrapper slightly improve see MaxAndSkip
     def __init__(self, env=None):
         """For environments where the user need to press FIRE for the game to start."""
         super(FireResetEnv, self).__init__(env)
@@ -111,16 +132,17 @@ class FireResetEnv(gym.Wrapper):
 
     def reset(self):
         self.env.reset()
-        obs, _, done, _ = self.env.step(1)
-        if done:
+        obs = self.env.step(1)
+        if obs[2]:
             self.env.reset()
-        obs, _, done, _ = self.env.step(2)
-        if done:
+        obs = self.env.step(2)
+        if obs[2]:
             self.env.reset()
-        return obs
+        return (obs[0], {})
 
 
 class MaxAndSkipEnv(gym.Wrapper):
+    #slight improvement made: takes 5 positional arguments instead of 4 (for newer environment and perfomance) *is applied early
     def __init__(self, env=None, skip=4):
         """Return only every `skip`-th frame"""
         super(MaxAndSkipEnv, self).__init__(env)
@@ -132,20 +154,20 @@ class MaxAndSkipEnv(gym.Wrapper):
         total_reward = 0.0
         done = None
         for _ in range(self._skip):
-            obs, reward, done, info= self.env.step(action)
+            obs, reward, done, info, extra= self.env.step(action)
             self._obs_buffer.append(obs)
             total_reward += reward
             if done:
                 break
         max_frame = np.max(np.stack(self._obs_buffer), axis=0)
-        return max_frame, total_reward, done, info
+        return max_frame, total_reward, done, info, extra
 
     def reset(self):
         """Clear past frame buffer and init. to first obs. from inner env."""
         self._obs_buffer.clear()
-        obs = self.env.reset()
+        obs, extra = self.env.reset()
         self._obs_buffer.append(obs)
-        return obs
+        return obs, extra
 
 
 class ProcessFrame84(gym.ObservationWrapper):
@@ -192,8 +214,11 @@ class ImageToPyTorch(gym.ObservationWrapper):
 
 
 class ScaledFloatFrame(gym.ObservationWrapper):
+    def __init__(self, env, maxchannel_v=255.):
+        super().__init__(env)
+        self.maxchannel_v=maxchannel_v
     def observation(self, obs):
-        return np.array(obs).astype(np.float32) / 255.0
+        return np.array(obs).astype(np.float32) / self.maxchannel_v
 
 
 class BufferWrapper(gym.ObservationWrapper):
@@ -201,19 +226,16 @@ class BufferWrapper(gym.ObservationWrapper):
         super(BufferWrapper, self).__init__(env)
         self.dtype = dtype
         old_space = env.observation_space
-        print(old_space)
+       
         self.observation_space = gym.spaces.Box(old_space.low.repeat(n_steps, axis=0), old_space.high.repeat(n_steps, axis=0), dtype=dtype)
 
-        print(self.observation_space)
+        
 
     def reset(self):
-        
         self.buffer = np.zeros_like(self.observation_space.low, dtype=self.dtype)
-        
         return self.observation(self.env.reset())
 
     def observation(self, observation):
-        print(len(observation), observation[0].shape)
         self.buffer[:-1] = self.buffer[1:]
         self.buffer[-1] = observation[0]
         return self.buffer
@@ -227,4 +249,5 @@ class BufferWrapper(gym.ObservationWrapper):
     env = ImageToPyTorch(env)
     env = BufferWrapper(env, 4)
     return ScaledFloatFrame(env)'''
+
 

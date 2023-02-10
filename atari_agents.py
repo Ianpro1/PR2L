@@ -8,13 +8,12 @@ import atari_wrappers
 from torch.utils.tensorboard import SummaryWriter
 import time
 import matplotlib.pyplot as plt
-from collections import namedtuple
 import math
 
 
-ENV_NAME = "Breakout-v4"
-EPSILON_DECAY_LAST_FRAME = 3000000
-EPSILON_START = 0.01 #make epsilon a sinusoidal function
+ENV_NAME = "Cartpole-v1"
+EPSILON_DECAY_LAST_FRAME = 150000 #150000 default
+EPSILON_START = 0.01 
 EPSILON_FINAL = 0.01
 GAMMA = 0.99
 REPLAY_SIZE = 10000
@@ -25,13 +24,6 @@ LEARNING_RATE = 1e-4
 
 '''def calc_sin_epsilon(x):
     return (2.0*math.cos(x/20.)+3.)/100.'''
-
-"""
-POSSIBLE IMPROVEMENTS: wrapping the environment observation to show movement between frameskip,
-press fire at start of episode,
-
-
-"""
 
 
 parameters = {
@@ -46,26 +38,33 @@ parameters = {
 }
 
 env = gym.make(ENV_NAME)
-#env = atari_wrappers.FireResetEnv(env)
-
+env = atari_wrappers.SingleLifeWrapper(env)
+env = atari_wrappers.FireResetEnv(env)
+env = atari_wrappers.MaxAndSkipEnv(env)
 env = atari_wrappers.ProcessFrame84(env)
 env = atari_wrappers.reshapeWrapper(env)
+env = atari_wrappers.ScaledFloatFrame(env, 148.)
 env = atari_wrappers.BufferWrapper(env, 3)
-env = atari_wrappers.oldWrapper(env)
-#env = atari_wrappers.MaxAndSkipEnv(env)
-#env = atari_wrappers.ScaledFloatFrame(env)
-obs = env.reset()
-for x in range(100):
+#env = atari_wrappers.oldWrapper(env) # this is messing up the buffer wrapper
+env = atari_wrappers.oldStepWrapper(env)
+
+
+
+'''for x in range(100):
     obs = env.step(np.random.choice(env.action_space.n))
+    print(obs[0].max())
     #plt.imshow(obs[0], cmap='gray')#.transpose(1,2,0))
     plt.imshow(obs[0].transpose(1,2,0), cmap='gray')
-    plt.show()
+    plt.show()'''
+
 PATH = "Breakout-v4.pt"
-device = "cpu"
+device = "cuda"
+
 obs_shape = env.observation_space.shape
 
 
-net = common.DQN(obs_shape, env.action_space.n).to(device)
+#net = common.DQN(obs_shape, env.action_space.n).to(device)
+
 print(net)
 tgt_net = ptan.agent.TargetNet(net)
 
@@ -76,15 +75,21 @@ exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=GAMMA)
 buffer = ptan.experience.ExperienceReplayBuffer(exp_source, buffer_size=REPLAY_SIZE)
 optimizer = torch.optim.Adam(net.parameters(), lr=LEARNING_RATE)
 
-net.load_state_dict(torch.load("gitmodelsaves/gitmodelsaves/modelsave38_(08-33).pt"))
-if True:
+
+net.load_state_dict(torch.load("Breakout-v4/2023-02-10/modelsave40_(09-49).pt"))
+tgt_net.sync()
+if False:
     renv = gym.make(ENV_NAME)
+    
     renv = atari_wrappers.RenderWrapper(renv)
-    renv = atari_wrappers.ProcessFrame84(renv)
-    renv = atari_wrappers.reshapeWrapper(renv) # ->prefered over reshape argument in ProcessFrame84
-    renv = atari_wrappers.ScaledFloatFrame(renv)
-    renv = atari_wrappers.oldWrapper(renv)
+    renv = atari_wrappers.SingleLifeWrapper(renv)
+    renv = atari_wrappers.FireResetEnv(renv)
     renv = atari_wrappers.MaxAndSkipEnv(renv)
+    renv = atari_wrappers.ProcessFrame84(renv)
+    renv = atari_wrappers.reshapeWrapper(renv)
+    renv = atari_wrappers.ScaledFloatFrame(renv, 148.)
+    renv = atari_wrappers.BufferWrapper(renv, 3)
+    renv = atari_wrappers.oldStepWrapper(renv)
     
     r_agent = ptan.agent.DQNAgent(net, action_selector=ptan.actions.EpsilonGreedyActionSelector(epsilon=0.1), device=device, preprocessor=preprocessor)
     render_source = ptan.experience.ExperienceSource(renv, r_agent)
@@ -135,7 +140,8 @@ while True:
         ts_frame = idx
         ts = time.time()
         episode+=1
-        print("idx %d, steps %d, episode %d done, reward=%.3f rewards, epsilon=%.4f, FPS %.3f" %(idx,steps,episode, rewards, selector.epsilon, speed))
+        print("FPS %.0f" % speed, "reward: %.2f" %rewards )
+        #print("idx %d, steps %d, episode %d done, reward=%.3f rewards, epsilon=%.4f, FPS %.3f" %(idx,steps,episode, rewards, selector.epsilon, speed))
         writer.add_scalar("episodes", episode, idx)
         writer.add_scalar("rewards", rewards, idx)
         writer.add_scalar("epsilon", selector.epsilon, idx)
@@ -174,11 +180,23 @@ while True:
     loss = torch.nn.functional.mse_loss(q_v, q_v_refs)
     loss.backward()
     optimizer.step()
-
     
-    #selector.epsilon = max(EPSILON_FINAL, EPSILON_START - idx / EPSILON_DECAY_LAST_FRAME)
-    #selector.epsilon = calc_sin_epsilon(episode)
+    '''grad_max = 0
+    grad_count = 0
+    grad_means = 0
+    for p in net.parameters():
+        grad_max = max(grad_max, p.grad.abs().max().item())
+        grad_means += (p.grad ** 2).mean().sqrt().item()
+        grad_count += 1
+    writer.add_scalar("grad_max",grad_max, idx)
+    writer.add_scalar("grad_mean", grad_means/grad_count, idx)'''
+        
+    writer.add_scalar("loss", loss, idx)
+    
+    selector.epsilon = max(EPSILON_FINAL, EPSILON_START - idx / EPSILON_DECAY_LAST_FRAME)
+    
     if idx % TGT_NET_SYNC ==0:
+        
         tgt_net.sync()
     
     if idx % 50000 == 0:
