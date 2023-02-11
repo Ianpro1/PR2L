@@ -17,6 +17,10 @@ class reshapeWrapper(gym.ObservationWrapper):
     def observation(self, obs):
         return obs.transpose(2,0,1)
 
+class expandWrapper(gym.ObservationWrapper):   
+    #may be required for discrete environment observations    
+    def observation(self, obs):
+        return [obs]
 
 class oldStepWrapper(gym.Wrapper):
     """for outdated wrappers that expects 4 values to unpack from env.step() method,
@@ -86,6 +90,7 @@ class RenderWrapper(gym.Wrapper):
         return np.array(frames)
 
 class SingleLifeWrapper(gym.Wrapper):
+    #Only works for atari:Breakout
     #instead of returning fake observation, try doing firestep for the agent
     def __init__(self, env=None):
         super().__init__(env)
@@ -100,8 +105,7 @@ class SingleLifeWrapper(gym.Wrapper):
             return obs
         else:
             #this fails after 2 consecutives resets
-            return (self.last_obs[0], self.last_obs[4])
-
+            return (self.last_obs[0], self.last_obs[4])    
     def step(self, action):
         obs, r, done, info, lives = self.env.step(action)
         self.lives = lives["lives"]
@@ -111,11 +115,29 @@ class SingleLifeWrapper(gym.Wrapper):
             self.last = self.lives
             self.last_obs = obs
             return (obs, r, True, info, lives)
-
         self.last = self.lives
         return (obs, r, done, info, lives)
 
+class AutomateFireAction(gym.Wrapper):
+    def __init__(self, env=None):
+        super().__init__(env)
+        assert env.unwrapped.get_action_meanings()[1] == 'FIRE'
+        self.lives = None
+        self.last = 0.0
+    def reset(self):
+        obs, lives = self.env.reset()
+        self.lives = lives["lives"]
+        return (obs, lives)
 
+    def step(self, action):
+        obs, r, done, info, lives = self.env.step(action)
+        self.lives = lives["lives"]
+        if self.last > self.lives:
+            self.last = self.lives
+            obs, r, done, info, lives = self.env.step(1)
+            return obs, r, done, info, lives
+        self.last = self.lives
+        return (obs, r, done, info, lives)
 
 # well known wrappers (Some are incompatible with gym >= 0.26 and need fix due to outdated gym observations which used to return 4 objects)
 

@@ -1,8 +1,7 @@
 import gym
 import numpy as np
 import torch
-#import ptan_copy as ptan
-import ptan
+import ptan_copy as ptan
 import common
 import atari_wrappers
 from torch.utils.tensorboard import SummaryWriter
@@ -11,7 +10,7 @@ import matplotlib.pyplot as plt
 import math
 
 
-ENV_NAME = "Cartpole-v1"
+ENV_NAME = "Breakout-v4"
 EPSILON_DECAY_LAST_FRAME = 150000 #150000 default
 EPSILON_START = 0.01 
 EPSILON_FINAL = 0.01
@@ -38,7 +37,7 @@ parameters = {
 }
 
 env = gym.make(ENV_NAME)
-env = atari_wrappers.SingleLifeWrapper(env)
+env = atari_wrappers.AutomateFireAction(env)
 env = atari_wrappers.FireResetEnv(env)
 env = atari_wrappers.MaxAndSkipEnv(env)
 env = atari_wrappers.ProcessFrame84(env)
@@ -47,7 +46,6 @@ env = atari_wrappers.ScaledFloatFrame(env, 148.)
 env = atari_wrappers.BufferWrapper(env, 3)
 #env = atari_wrappers.oldWrapper(env) # this is messing up the buffer wrapper
 env = atari_wrappers.oldStepWrapper(env)
-
 
 
 '''for x in range(100):
@@ -65,6 +63,8 @@ obs_shape = env.observation_space.shape
 
 #net = common.DQN(obs_shape, env.action_space.n).to(device)
 
+
+net = common.DQN(obs_shape, env.action_space.n).to(device)
 print(net)
 tgt_net = ptan.agent.TargetNet(net)
 
@@ -134,6 +134,7 @@ writer = SummaryWriter(comment=ENV_NAME +"_--" + device)
 while True:
     idx += 1
     buffer.populate(1)
+    
 
     for rewards, steps in exp_source.pop_rewards_steps():
         speed = (idx - ts_frame) / (time.time() - ts)

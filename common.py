@@ -110,20 +110,22 @@ def unpack_batch(batch:list[ptan.experience.ExperienceFirstLast]): #List was und
 
 #model save
 class ModelBackup:
-    def __init__(self, root, net, notify=True):
+    def __init__(self, root, net, notify=True, Temp_disable=False):
         self.dateroot = str(datetime.datetime.now().date())
         self.date = datetime.datetime.now().strftime("(%H-%M)")
         
         self.path = os.path.join(root, self.dateroot)
         if os.path.isdir(self.path) ==False:
             os.makedirs(self.path)
-
+        self.Temp_disable = Temp_disable
         self.net = net
         self.root = root
         self.notify=notify
         self.id = 0
             
     def save(self, parameters=None):
+        if self.Temp_disable:
+            return None
         name = "modelsave%d_"%self.id + self.date + ".pt"
         torch.save(self.net.state_dict(), os.path.join(self.path, name))
         if parameters:

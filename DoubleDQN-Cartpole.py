@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 import torch
-#import ptan_copy as ptan
+
 import ptan
 import common
 import atari_wrappers
@@ -12,7 +12,7 @@ import math
 
 
 ENV_NAME = "CartPole-v1"
-EPSILON_DECAY_LAST_FRAME = 1500 #150000 default
+EPSILON_DECAY_LAST_FRAME = 15000 #150000 default
 EPSILON_START = 1.0 
 EPSILON_FINAL = 0.01
 GAMMA = 0.99
@@ -34,11 +34,16 @@ parameters = {
     "TGT_NET_SYNC":TGT_NET_SYNC,
     "EPSILON_DECAY_LAST_FRAME":EPSILON_DECAY_LAST_FRAME,
     "BATCH_SIZE":BATCH_SIZE,
-    "REPLAY_SIZE":REPLAY_SIZE
+    "REPLAY_SIZE":REPLAY_SIZE,
+    "elapsed": 0.0
 }
 
 env = gym.make(ENV_NAME)
+env = atari_wrappers.expandWrapper(env)
 env = atari_wrappers.oldWrapper(env)
+
+obs = env.reset()
+print(obs)
 
 '''for x in range(100):
     obs = env.step(np.random.choice(env.action_space.n))
@@ -50,7 +55,14 @@ env = atari_wrappers.oldWrapper(env)
 #PATH = "Breakout-v4.pt"
 device = "cuda"
 
-obs_shape = np.array(env.observation_space.shape).reshape(-1)[0]
+obs_shape = env.observation_space
+if isinstance(obs_shape, gym.spaces.Discrete):
+    obs_shape = 1
+    print("shape detected: Discrete")
+elif isinstance(obs_shape, gym.spaces.Box):
+    obs_shape=np.prod(obs_shape.shape)
+    print("shape detected: Box")
+
 action_shape = env.action_space.n
 
 #net = common.DQN(obs_shape, env.action_space.n).to(device)
@@ -114,13 +126,13 @@ idx = 0
 episode = 0
 ts_frame = 0
 ts = time.time()
-
-backup = common.ModelBackup(ENV_NAME, net=net, notify=True)
+start_time = time.time()
+backup = common.ModelBackup(ENV_NAME, net=net, notify=True, Temp_disable=True)
 backup.save(parameters=parameters)
 #need to save settings and create new model folder to keep old models and new ones
 
 writer = SummaryWriter(comment=ENV_NAME +"_--" + device)
-
+solved = False
 while True:
     idx += 1
     buffer.populate(1)
@@ -136,9 +148,10 @@ while True:
         writer.add_scalar("rewards", rewards, idx)
         writer.add_scalar("epsilon", selector.epsilon, idx)
         writer.add_scalar("FPS", speed, idx)
-        solved = rewards > 350
+        solved = rewards > 1000
     if solved:
-        print("done in %d episodes" % episode)
+        print("done in %d episodes, elapsed: %.2f seconds" % (episode, time.time()-start_time))
+        print('epsilon_last_frame: %.3f' %EPSILON_DECAY_LAST_FRAME)
         parameters["epsilon"] = selector.epsilon
         parameters["complete"] = True
         backup.save(parameters=parameters)
@@ -186,11 +199,11 @@ while True:
     selector.epsilon = max(EPSILON_FINAL, EPSILON_START - idx / EPSILON_DECAY_LAST_FRAME)
     
     if idx % TGT_NET_SYNC ==0:
-        
         tgt_net.sync()
     
     if idx % 50000 == 0:
         parameters["epsilon"] = selector.epsilon
+        parameters["elapsed"] = time.time() - start_time
         backup.save(parameters=parameters)
     
     
@@ -206,3 +219,37 @@ print(type(render_source) == ptan.experience.ExperienceSource)
 video = common.playandsave_episode(render_source=render_source)
 common.create_video(video, "output.mp4")'''
 
+
+"""
+SCOREBOARD:
+
+CARTPOLE:
+reward_bound = 1000
+
+idx 55718, steps 1878, episode 486 done, reward=1878.000 rewards, epsilon=0.0100, FPS 262.401
+done in 486 episodes, elapsed: 217.72 seconds
+epsilon_last_frame: 15000.000
+
+idx 64738, steps 1311, episode 825 done, reward=1311.000 rewards, epsilon=0.0100, FPS 259.964
+done in 825 episodes, elapsed: 278.92 seconds
+epsilon_last_frame: 1500.000
+
+idx 74628, steps 7672, episode 642 done, reward=7672.000 rewards, epsilon=0.0100, FPS 253.813
+done in 642 episodes, elapsed: 313.54 seconds
+epsilon_last_frame: 25000.000
+
+WITH TGT_SYNC_FRAMES: 500
+idx 60162, steps 1224, episode 692 done, reward=1224.000 rewards, epsilon=0.0100, FPS 246.252
+done in 692 episodes, elapsed: 253.88 seconds
+epsilon_last_frame: 25000.000
+
+WITH TGT_SYNC_FRAMES: 2000
+epsilon_last_frame: 25000.000
+idx is 100000 and agent seem stuck at local optimum
+good training increase of rewards but sharp drop at 50k frames
+
+FROZENLAKE:
+
+
+
+"""

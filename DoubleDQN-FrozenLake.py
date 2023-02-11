@@ -1,20 +1,19 @@
 import gym
 import numpy as np
 import torch
-#import ptan_copy as ptan
+
 import ptan
 import common
 import atari_wrappers
 from torch.utils.tensorboard import SummaryWriter
 import time
 import matplotlib.pyplot as plt
-from collections import namedtuple
 import math
 
-#dual agent + noisy network + multiple env + mutiprocessing + filtered buffer
-ENV_NAME = "Breakout-v4"
-EPSILON_DECAY_LAST_FRAME = 3000000
-EPSILON_START = 0.01 #make epsilon a sinusoidal function
+
+ENV_NAME = "FrozenLake-v1"
+EPSILON_DECAY_LAST_FRAME = 15000 #150000 default
+EPSILON_START = 1.0 
 EPSILON_FINAL = 0.01
 GAMMA = 0.99
 REPLAY_SIZE = 10000
@@ -27,8 +26,6 @@ LEARNING_RATE = 1e-4
     return (2.0*math.cos(x/20.)+3.)/100.'''
 
 
-
-
 parameters = {
     "epsilon":EPSILON_START,
     "complete":False,
@@ -37,25 +34,40 @@ parameters = {
     "TGT_NET_SYNC":TGT_NET_SYNC,
     "EPSILON_DECAY_LAST_FRAME":EPSILON_DECAY_LAST_FRAME,
     "BATCH_SIZE":BATCH_SIZE,
-    "REPLAY_SIZE":REPLAY_SIZE
+    "REPLAY_SIZE":REPLAY_SIZE,
+    "elapsed": 0.0
 }
 
 env = gym.make(ENV_NAME)
-env = atari_wrappers.FireResetEnv(env)
-env = atari_wrappers.ProcessFrame84(env)
-env = atari_wrappers.BufferWrapper(env, 4)
-env = atari_wrappers.reshapeWrapper(env) # ->prefered over reshape argument in ProcessFrame84
-env = atari_wrappers.ScaledFloatFrame(env)
+env = atari_wrappers.expandWrapper(env)
 env = atari_wrappers.oldWrapper(env)
-env = atari_wrappers.MaxAndSkipEnv(env)
 
-PATH = "Breakout-v4.pt"
-device = "cpu"
-obs_shape = env.observation_space.shape
+obs = env.reset()
+print(obs)
 
+'''for x in range(100):
+    obs = env.step(np.random.choice(env.action_space.n))
+    print(obs[0].max())
+    #plt.imshow(obs[0], cmap='gray')#.transpose(1,2,0))
+    plt.imshow(obs[0].transpose(1,2,0), cmap='gray')
+    plt.show()'''
 
-net = common.DQN(obs_shape, env.action_space.n).to(device)
-print(net)
+#PATH = "Breakout-v4.pt"
+device = "cuda"
+
+obs_shape = env.observation_space
+if isinstance(obs_shape, gym.spaces.Discrete):
+    obs_shape = 1
+    print("shape detected: Discrete")
+elif isinstance(obs_shape, gym.spaces.Box):
+    obs_shape=np.prod(obs_shape.shape)
+    print("shape detected: Box")
+
+action_shape = env.action_space.n
+
+#net = common.DQN(obs_shape, env.action_space.n).to(device)
+
+net = common.DenseDQN(obs_shape, 256, action_shape).to(device)
 tgt_net = ptan.agent.TargetNet(net)
 
 preprocessor = common.ndarray_preprocessor(common.FloatTensor_preprocessor())
@@ -66,14 +78,20 @@ buffer = ptan.experience.ExperienceReplayBuffer(exp_source, buffer_size=REPLAY_S
 optimizer = torch.optim.Adam(net.parameters(), lr=LEARNING_RATE)
 
 
+'''net.load_state_dict(torch.load("Breakout-v4/2023-02-10/modelsave40_(09-49).pt"))
+tgt_net.sync()'''
 if False:
     renv = gym.make(ENV_NAME)
+    
     renv = atari_wrappers.RenderWrapper(renv)
-    renv = atari_wrappers.ProcessFrame84(renv)
-    renv = atari_wrappers.reshapeWrapper(renv) # ->prefered over reshape argument in ProcessFrame84
-    renv = atari_wrappers.ScaledFloatFrame(renv)
-    renv = atari_wrappers.oldWrapper(renv)
+    renv = atari_wrappers.SingleLifeWrapper(renv)
+    renv = atari_wrappers.FireResetEnv(renv)
     renv = atari_wrappers.MaxAndSkipEnv(renv)
+    renv = atari_wrappers.ProcessFrame84(renv)
+    renv = atari_wrappers.reshapeWrapper(renv)
+    renv = atari_wrappers.ScaledFloatFrame(renv, 148.)
+    renv = atari_wrappers.BufferWrapper(renv, 3)
+    renv = atari_wrappers.oldStepWrapper(renv)
     
     r_agent = ptan.agent.DQNAgent(net, action_selector=ptan.actions.EpsilonGreedyActionSelector(epsilon=0.1), device=device, preprocessor=preprocessor)
     render_source = ptan.experience.ExperienceSource(renv, r_agent)
@@ -108,12 +126,17 @@ idx = 0
 episode = 0
 ts_frame = 0
 ts = time.time()
-
-backup = common.ModelBackup(ENV_NAME, net=net, notify=True)
+start_time = time.time()
+backup = common.ModelBackup(ENV_NAME, net=net, notify=True, Temp_disable=True)
 backup.save(parameters=parameters)
 #need to save settings and create new model folder to keep old models and new ones
 
 writer = SummaryWriter(comment=ENV_NAME +"_--" + device)
+solved = False
+
+from collections import deque
+maxlen = 100
+rewards_arr = deque(maxlen=maxlen)
 
 while True:
     idx += 1
@@ -124,18 +147,25 @@ while True:
         ts_frame = idx
         ts = time.time()
         episode+=1
-        print("idx %d, steps %d, episode %d done, reward=%.3f rewards, epsilon=%.4f, FPS %.3f" %(idx,steps,episode, rewards, selector.epsilon, speed))
+        rewards_arr.append(rewards)
+        print(sum(rewards_arr))
+        if len(rewards_arr) >= maxlen-1:
+            print("FPS %.0f" % speed, "reward_avg: %.2f" % sum(rewards_arr)/float(maxlen) )
+
+        #print("idx %d, steps %d, episode %d done, reward=%.3f rewards, epsilon=%.4f, FPS %.3f" %(idx,steps,episode, rewards, selector.epsilon, speed))
         writer.add_scalar("episodes", episode, idx)
         writer.add_scalar("rewards", rewards, idx)
         writer.add_scalar("epsilon", selector.epsilon, idx)
         writer.add_scalar("FPS", speed, idx)
-        solved = rewards > 350
-        if solved:
-            print("done in %d episodes" % episode)
-            parameters["epsilon"] = selector.epsilon
-            parameters["complete"] = True
-            backup.save(parameters=parameters)
-            break
+        solved = rewards > 1000
+    if solved:
+        print("idx %d, steps %d, episode %d done, reward=%.3f rewards, epsilon=%.4f, FPS %.3f" %(idx,steps,episode, rewards, selector.epsilon, speed))
+        print("done in %d episodes, elapsed: %.2f seconds" % (episode, time.time()-start_time))
+        print('epsilon_last_frame: %.3f' %EPSILON_DECAY_LAST_FRAME)
+        parameters["epsilon"] = selector.epsilon
+        parameters["complete"] = True
+        backup.save(parameters=parameters)
+        break
     if len(buffer) < 2*BATCH_SIZE:
         continue
     batch = buffer.sample(BATCH_SIZE)
@@ -144,15 +174,7 @@ while True:
     # agent returns best actions for tgt
 
     last_states = preprocessor(last_states).to(device)
-    grad_max = 0
-    grad_count = 0
-    grad_means = 0
-    for p in net.parameters():
-        grad_max = max(grad_max, p.grad.abs().max().item())
-        grad_means += (p.grad ** 2).mean().sqrt().item()
-        grad_count += 1
-    writer.add_scalar("grad_max",grad_max, idx)
-    writer.add_scalar("grad_mean", grad_means/grad_count, idx)
+    
     with torch.no_grad(): #try to use numpy instead
         tgt_q = net(last_states)
         tgt_actions = torch.argmax(tgt_q, 1)
@@ -171,15 +193,27 @@ while True:
     loss = torch.nn.functional.mse_loss(q_v, q_v_refs)
     loss.backward()
     optimizer.step()
-
     
-    #selector.epsilon = max(EPSILON_FINAL, EPSILON_START - idx / EPSILON_DECAY_LAST_FRAME)
-    #selector.epsilon = calc_sin_epsilon(episode)
+    '''grad_max = 0
+    grad_count = 0
+    grad_means = 0
+    for p in net.parameters():
+        grad_max = max(grad_max, p.grad.abs().max().item())
+        grad_means += (p.grad ** 2).mean().sqrt().item()
+        grad_count += 1
+    writer.add_scalar("grad_max",grad_max, idx)
+    writer.add_scalar("grad_mean", grad_means/grad_count, idx)'''
+        
+    writer.add_scalar("loss", loss, idx)
+    
+    selector.epsilon = max(EPSILON_FINAL, EPSILON_START - idx / EPSILON_DECAY_LAST_FRAME)
+    
     if idx % TGT_NET_SYNC ==0:
         tgt_net.sync()
     
     if idx % 50000 == 0:
         parameters["epsilon"] = selector.epsilon
+        parameters["elapsed"] = time.time() - start_time
         backup.save(parameters=parameters)
     
     
@@ -195,3 +229,12 @@ print(type(render_source) == ptan.experience.ExperienceSource)
 video = common.playandsave_episode(render_source=render_source)
 common.create_video(video, "output.mp4")'''
 
+
+"""
+SCOREBOARD:
+
+FROZENLAKE:
+
+
+
+"""
