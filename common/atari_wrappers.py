@@ -6,6 +6,12 @@ import collections
 
 
 # custom wrappers
+class functionalObservationWrapper(gym.ObservationWrapper):
+    def __init__(self, env, func):
+        super().__init__(env)
+        self.F = func
+    def observation(self, obs):
+        return self.F(obs)
 
 class reshapeWrapper(gym.ObservationWrapper):
     def __init__(self, env):
@@ -17,7 +23,7 @@ class reshapeWrapper(gym.ObservationWrapper):
     def observation(self, obs):
         return obs.transpose(2,0,1)
 
-class expandWrapper(gym.ObservationWrapper):   
+class ListWrapper(gym.ObservationWrapper):   
     #may be required for discrete environment observations    
     def observation(self, obs):
         return [obs]
@@ -61,19 +67,6 @@ class oldWrapper(gym.Wrapper):
         obs, reward, done, info, _ = self.env.step(action)
         return obs, reward, done, info
 
-class DumbRewardWrapper(gym.Wrapper):
-    def __init__(self, env=None):
-        super().__init__(env)
-
-    def reset(self):
-        return self.env.reset()
-
-    def step(self, x):
-        elem = self.env.step(x)
-        elem = list(elem)
-        elem[1] = 1.0
-        return elem
-
 class RenderWrapper(gym.Wrapper):
     def __init__(self, env=None):
         super().__init__(env)
@@ -89,7 +82,8 @@ class RenderWrapper(gym.Wrapper):
         self.frames.clear()
         return np.array(frames)
 
-class SingleLifeWrapper(gym.Wrapper):
+#bad implementation
+'''class SingleLifeWrapper(gym.Wrapper):
     #Only works for atari:Breakout
     #instead of returning fake observation, try doing firestep for the agent
     def __init__(self, env=None):
@@ -116,7 +110,7 @@ class SingleLifeWrapper(gym.Wrapper):
             self.last_obs = obs
             return (obs, r, True, info, lives)
         self.last = self.lives
-        return (obs, r, done, info, lives)
+        return (obs, r, done, info, lives)'''
 
 class AutomateFireAction(gym.Wrapper):
     def __init__(self, env=None):
@@ -261,15 +255,4 @@ class BufferWrapper(gym.ObservationWrapper):
         self.buffer[:-1] = self.buffer[1:]
         self.buffer[-1] = observation[0]
         return self.buffer
-
-
-'''def make_env(env_name):
-    env = gym.make(env_name)
-    env = MaxAndSkipEnv(env)
-    env = FireResetEnv(env)
-    env = ProcessFrame84(env)
-    env = ImageToPyTorch(env)
-    env = BufferWrapper(env, 4)
-    return ScaledFloatFrame(env)'''
-
 

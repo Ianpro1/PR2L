@@ -1,14 +1,12 @@
 import gym
 import numpy as np
 import torch
-
+import common.models as models
 import ptan
-import common
-import atari_wrappers
+import common.extentions as E
+import common.atari_wrappers as atari_wrappers
 from torch.utils.tensorboard import SummaryWriter
 import time
-import matplotlib.pyplot as plt
-import math
 
 
 ENV_NAME = "CartPole-v1"
@@ -16,15 +14,11 @@ EPSILON_DECAY_LAST_FRAME = 15000 #150000 default
 EPSILON_START = 1.0 
 EPSILON_FINAL = 0.01
 GAMMA = 0.99
+N_STEPS = 4
 REPLAY_SIZE = 10000
 TGT_NET_SYNC = 1000
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-4
-
-
-'''def calc_sin_epsilon(x):
-    return (2.0*math.cos(x/20.)+3.)/100.'''
-
 
 parameters = {
     "epsilon":EPSILON_START,
@@ -39,20 +33,9 @@ parameters = {
 }
 
 env = gym.make(ENV_NAME)
-env = atari_wrappers.expandWrapper(env)
 env = atari_wrappers.oldWrapper(env)
 
-obs = env.reset()
-print(obs)
 
-'''for x in range(100):
-    obs = env.step(np.random.choice(env.action_space.n))
-    print(obs[0].max())
-    #plt.imshow(obs[0], cmap='gray')#.transpose(1,2,0))
-    plt.imshow(obs[0].transpose(1,2,0), cmap='gray')
-    plt.show()'''
-
-#PATH = "Breakout-v4.pt"
 device = "cuda"
 
 obs_shape = env.observation_space
@@ -65,61 +48,15 @@ elif isinstance(obs_shape, gym.spaces.Box):
 
 action_shape = env.action_space.n
 
-#net = common.DQN(obs_shape, env.action_space.n).to(device)
-
-net = common.DenseDQN(obs_shape, 256, action_shape).to(device)
+net = models.DenseDQN(obs_shape, 256, action_shape).to(device)
 tgt_net = ptan.agent.TargetNet(net)
 
-preprocessor = common.ndarray_preprocessor(common.FloatTensor_preprocessor())
+preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
 selector = ptan.actions.EpsilonGreedyActionSelector(epsilon=EPSILON_START)
 agent = ptan.agent.DQNAgent(net, action_selector=selector, device=device, preprocessor=preprocessor)
-exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=GAMMA)
+exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=GAMMA, steps_count=N_STEPS)
 buffer = ptan.experience.ExperienceReplayBuffer(exp_source, buffer_size=REPLAY_SIZE)
 optimizer = torch.optim.Adam(net.parameters(), lr=LEARNING_RATE)
-
-
-'''net.load_state_dict(torch.load("Breakout-v4/2023-02-10/modelsave40_(09-49).pt"))
-tgt_net.sync()'''
-if False:
-    renv = gym.make(ENV_NAME)
-    
-    renv = atari_wrappers.RenderWrapper(renv)
-    renv = atari_wrappers.SingleLifeWrapper(renv)
-    renv = atari_wrappers.FireResetEnv(renv)
-    renv = atari_wrappers.MaxAndSkipEnv(renv)
-    renv = atari_wrappers.ProcessFrame84(renv)
-    renv = atari_wrappers.reshapeWrapper(renv)
-    renv = atari_wrappers.ScaledFloatFrame(renv, 148.)
-    renv = atari_wrappers.BufferWrapper(renv, 3)
-    renv = atari_wrappers.oldStepWrapper(renv)
-    
-    r_agent = ptan.agent.DQNAgent(net, action_selector=ptan.actions.EpsilonGreedyActionSelector(epsilon=0.1), device=device, preprocessor=preprocessor)
-    render_source = ptan.experience.ExperienceSource(renv, r_agent)
-    common.playandsave_episode(render_source, renv)
-    video = renv.pop_frames()
-    print(video.shape)
-    common.create_video(video, "output2.mp4")
-    raise MemoryError
-
-def unpack_batch(batch, obs_shape): # return states, actions, calculated tgt_q_v = r + tgt_net(last_state)*GAMMA
-    states = []
-    rewards = []
-    actions = []
-    last_states = []
-    dones = []
-    for exp in batch: # make it in 2 for loops for if statement
-        states.append(exp.state)
-        rewards.append(exp.reward)
-        actions.append(exp.action)
-        
-        if exp.last_state is not None:
-            dones.append(False)
-            last_states.append(exp.last_state) 
-        else:
-            dones.append(True)
-            last_states.append(np.empty(shape=obs_shape)) #might be suboptimal
-   
-    return states, actions, rewards, last_states, dones
 
 
 idx = 0
@@ -127,7 +64,7 @@ episode = 0
 ts_frame = 0
 ts = time.time()
 start_time = time.time()
-backup = common.ModelBackup(ENV_NAME, net=net, notify=True, Temp_disable=True)
+backup = E.ModelBackup(ENV_NAME, net=net, notify=True, Temp_disable=True)
 backup.save(parameters=parameters)
 #need to save settings and create new model folder to keep old models and new ones
 
@@ -159,7 +96,7 @@ while True:
     if len(buffer) < 2*BATCH_SIZE:
         continue
     batch = buffer.sample(BATCH_SIZE)
-    states, actions, rewards, last_states, dones = unpack_batch(batch, obs_shape)
+    states, actions, rewards, last_states, dones = E.unpack_batch(batch, obs_shape)
     
     # agent returns best actions for tgt
 
@@ -183,17 +120,7 @@ while True:
     loss = torch.nn.functional.mse_loss(q_v, q_v_refs)
     loss.backward()
     optimizer.step()
-    
-    '''grad_max = 0
-    grad_count = 0
-    grad_means = 0
-    for p in net.parameters():
-        grad_max = max(grad_max, p.grad.abs().max().item())
-        grad_means += (p.grad ** 2).mean().sqrt().item()
-        grad_count += 1
-    writer.add_scalar("grad_max",grad_max, idx)
-    writer.add_scalar("grad_mean", grad_means/grad_count, idx)'''
-        
+            
     writer.add_scalar("loss", loss, idx)
     
     selector.epsilon = max(EPSILON_FINAL, EPSILON_START - idx / EPSILON_DECAY_LAST_FRAME)
@@ -206,19 +133,6 @@ while True:
         parameters["elapsed"] = time.time() - start_time
         backup.save(parameters=parameters)
     
-    
-
-
-'''
-#last call or during training
-torch.save(net.state_dict(), PATH)
-
-#render_function
-render_source = ptan.experience.ExperienceSource(env, agent)
-print(type(render_source) == ptan.experience.ExperienceSource)
-video = common.playandsave_episode(render_source=render_source)
-common.create_video(video, "output.mp4")'''
-
 
 """
 SCOREBOARD:
@@ -228,6 +142,10 @@ reward_bound = 1000
 
 idx 55718, steps 1878, episode 486 done, reward=1878.000 rewards, epsilon=0.0100, FPS 262.401
 done in 486 episodes, elapsed: 217.72 seconds
+epsilon_last_frame: 15000.000
+
+idx 29558, steps 1305, episode 403 done, reward=1305.000 rewards, epsilon=0.0100, FPS 250.172
+done in 403 episodes, elapsed: 129.74 seconds
 epsilon_last_frame: 15000.000
 
 idx 64738, steps 1311, episode 825 done, reward=1311.000 rewards, epsilon=0.0100, FPS 259.964
@@ -248,8 +166,15 @@ epsilon_last_frame: 25000.000
 idx is 100000 and agent seem stuck at local optimum
 good training increase of rewards but sharp drop at 50k frames
 
-FROZENLAKE:
 
+-----N-STEPS -----
 
-
+3: with 0.97 failed to converge at 60k+ frames, with 0.99 42k -> (1064 score)
+4: 30k frames, 30k
+5: 50k frames (final score was infinite)
+4: with 0.98 -> 20k, 60k+ frames
+4, with 0.97 -> 40k, 24k (good stability)
+5, with 0.97 -> good stability, slow increase, lost reward at 43k almost won at 30k (~980 score)(closed training at 50k)
+BEST SETTINGS:
+epsilon_last_frame to 25% of expected frames = 15000 -> reaches less than 30k frames
 """

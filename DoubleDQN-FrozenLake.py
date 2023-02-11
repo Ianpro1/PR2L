@@ -1,13 +1,12 @@
 import gym
 import numpy as np
 import torch
-
+import common.models as models
 import ptan
-import common
-import atari_wrappers
+import common.extentions as E
+import common.atari_wrappers as atari_wrappers
 from torch.utils.tensorboard import SummaryWriter
 import time
-import matplotlib.pyplot as plt
 import math
 
 
@@ -42,20 +41,11 @@ env = gym.make(ENV_NAME)
 env = atari_wrappers.expandWrapper(env)
 env = atari_wrappers.oldWrapper(env)
 
-obs = env.reset()
-print(obs)
 
-'''for x in range(100):
-    obs = env.step(np.random.choice(env.action_space.n))
-    print(obs[0].max())
-    #plt.imshow(obs[0], cmap='gray')#.transpose(1,2,0))
-    plt.imshow(obs[0].transpose(1,2,0), cmap='gray')
-    plt.show()'''
-
-#PATH = "Breakout-v4.pt"
 device = "cuda"
 
 obs_shape = env.observation_space
+action_shape = env.action_space.n
 if isinstance(obs_shape, gym.spaces.Discrete):
     obs_shape = 1
     print("shape detected: Discrete")
@@ -63,23 +53,17 @@ elif isinstance(obs_shape, gym.spaces.Box):
     obs_shape=np.prod(obs_shape.shape)
     print("shape detected: Box")
 
-action_shape = env.action_space.n
 
-#net = common.DQN(obs_shape, env.action_space.n).to(device)
-
-net = common.DenseDQN(obs_shape, 256, action_shape).to(device)
+net = models.DenseDQN(obs_shape, 256, action_shape).to(device)
 tgt_net = ptan.agent.TargetNet(net)
 
-preprocessor = common.ndarray_preprocessor(common.FloatTensor_preprocessor())
+preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
 selector = ptan.actions.EpsilonGreedyActionSelector(epsilon=EPSILON_START)
 agent = ptan.agent.DQNAgent(net, action_selector=selector, device=device, preprocessor=preprocessor)
 exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=GAMMA)
 buffer = ptan.experience.ExperienceReplayBuffer(exp_source, buffer_size=REPLAY_SIZE)
 optimizer = torch.optim.Adam(net.parameters(), lr=LEARNING_RATE)
 
-
-'''net.load_state_dict(torch.load("Breakout-v4/2023-02-10/modelsave40_(09-49).pt"))
-tgt_net.sync()'''
 if False:
     renv = gym.make(ENV_NAME)
     
@@ -101,33 +85,13 @@ if False:
     common.create_video(video, "output2.mp4")
     raise MemoryError
 
-def unpack_batch(batch, obs_shape): # return states, actions, calculated tgt_q_v = r + tgt_net(last_state)*GAMMA
-    states = []
-    rewards = []
-    actions = []
-    last_states = []
-    dones = []
-    for exp in batch: # make it in 2 for loops for if statement
-        states.append(exp.state)
-        rewards.append(exp.reward)
-        actions.append(exp.action)
-        
-        if exp.last_state is not None:
-            dones.append(False)
-            last_states.append(exp.last_state) 
-        else:
-            dones.append(True)
-            last_states.append(np.empty(shape=obs_shape)) #might be suboptimal
-   
-    return states, actions, rewards, last_states, dones
-
 
 idx = 0
 episode = 0
 ts_frame = 0
 ts = time.time()
 start_time = time.time()
-backup = common.ModelBackup(ENV_NAME, net=net, notify=True, Temp_disable=True)
+backup = E.ModelBackup(ENV_NAME, net=net, notify=True, Temp_disable=True)
 backup.save(parameters=parameters)
 #need to save settings and create new model folder to keep old models and new ones
 
@@ -169,7 +133,7 @@ while True:
     if len(buffer) < 2*BATCH_SIZE:
         continue
     batch = buffer.sample(BATCH_SIZE)
-    states, actions, rewards, last_states, dones = unpack_batch(batch, obs_shape)
+    states, actions, rewards, last_states, dones = E.unpack_batch(batch, obs_shape)
     
     # agent returns best actions for tgt
 
@@ -193,17 +157,7 @@ while True:
     loss = torch.nn.functional.mse_loss(q_v, q_v_refs)
     loss.backward()
     optimizer.step()
-    
-    '''grad_max = 0
-    grad_count = 0
-    grad_means = 0
-    for p in net.parameters():
-        grad_max = max(grad_max, p.grad.abs().max().item())
-        grad_means += (p.grad ** 2).mean().sqrt().item()
-        grad_count += 1
-    writer.add_scalar("grad_max",grad_max, idx)
-    writer.add_scalar("grad_mean", grad_means/grad_count, idx)'''
-        
+            
     writer.add_scalar("loss", loss, idx)
     
     selector.epsilon = max(EPSILON_FINAL, EPSILON_START - idx / EPSILON_DECAY_LAST_FRAME)
@@ -217,24 +171,9 @@ while True:
         backup.save(parameters=parameters)
     
     
-
-
-'''
-#last call or during training
-torch.save(net.state_dict(), PATH)
-
-#render_function
-render_source = ptan.experience.ExperienceSource(env, agent)
-print(type(render_source) == ptan.experience.ExperienceSource)
-video = common.playandsave_episode(render_source=render_source)
-common.create_video(video, "output.mp4")'''
-
-
 """
 SCOREBOARD:
 
 FROZENLAKE:
-
-
 
 """

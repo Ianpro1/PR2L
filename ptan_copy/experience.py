@@ -176,7 +176,7 @@ class ExperienceSourceFirstLast(ExperienceSource):
 
     def __iter__(self):
         for exp in super(ExperienceSourceFirstLast, self).__iter__():
-            
+            print(exp)
             if exp[-1].done and len(exp) <= self.steps:
                 last_state = None
                 elems = exp
@@ -187,8 +187,10 @@ class ExperienceSourceFirstLast(ExperienceSource):
             for e in reversed(elems):
                 total_reward *= self.gamma
                 total_reward += e.reward
-            yield ExperienceFirstLast(state=exp[0].state, action=exp[0].action,
-                                      reward=total_reward, last_state=last_state)
+            yexp = ExperienceFirstLast(state=exp[0].state, action=exp[0].action,reward=total_reward, last_state=last_state)
+            print("-------------------",yexp)
+            
+            yield yexp
 
 
 def discount_with_dones(rewards, dones, gamma):

@@ -51,8 +51,7 @@ def float32_preprocessor(states):
     np_states = np.array(states, dtype=np.float32)
     return torch.tensor(np_states)
 
-import matplotlib.pyplot as plt
-from Rendering import queue #the idea is to push imgs to a queue but this implementation does not work
+
 class DQNAgent(BaseAgent):
     """
     DQNAgent is a memoryless DQN agent which calculates Q values
@@ -66,16 +65,14 @@ class DQNAgent(BaseAgent):
 
     @torch.no_grad()
     def __call__(self, states, agent_states=None):
+        #print(np.array(states).shape)
+        #raise MemoryError
         if agent_states is None:
             agent_states = [None] * len(states)
         if self.preprocessor is not None:
             states = self.preprocessor(states)
             if torch.is_tensor(states):
-                states = states.to(self.device)
-        
-        img = states.data.cpu().numpy()
-        img = img[0].transpose(1,2,0)
-        queue.put(img)
+                states = states.to(self.device)        
         
         q_v = self.dqn_model(states)
         q = q_v.data.cpu().numpy()
