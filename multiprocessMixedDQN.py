@@ -144,7 +144,8 @@ if __name__ == '__main__':
 
     print(net)
     
-    print(E.meanmax_weight(net))
+    for x in net.value_net[0].parameters():
+        print(x)
 
     class BatchGenerator:
         def __init__(self, buffer, exp_queue, initial, batch_size):
@@ -187,7 +188,12 @@ if __name__ == '__main__':
     BatchGen = BatchGenerator(buffer=buffer, exp_queue=exp_queue, initial= 2*parameters["BATCH_SIZE"], batch_size=parameters["BATCH_SIZE"])
 
     t1 = time.time()
+    
     while running:
+        
+        with open("save.txt", 'w') as f:
+            f.write(str(net.adv_net[0].state_dict()))
+        
         idx +=1
         
         beta = min(1.0, beta + idx * (1.0 - beta) / beta_frames)
@@ -218,9 +224,8 @@ if __name__ == '__main__':
 
         if idx % 20 == 0:
             print("loss %.3f" % (loss))
-        if idx % 100 == 0:
-            mean_w, max_w =E.meanmax_weight(net)
-            print(mean_w, max_w)
+    
+
         if idx % parameters['TGT_NET_SYNC'] ==0:
         
             tgt_net.sync()
