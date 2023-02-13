@@ -73,7 +73,14 @@ def calc_grad(net):
 
     return grad_means/grad_count, grad_max
     
-
+def meanmax_weight(net):
+    mean_w = []
+    max_w = []
+    for x in net.parameters():
+        max_w.append(x.max().item())
+        mean_w.append(x.mean().item())
+    return mean_w, max_w
+    
 #model save
 class ModelBackup:
     def __init__(self, root, net, notify=True, Temp_disable=False):

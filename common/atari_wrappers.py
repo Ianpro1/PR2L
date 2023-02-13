@@ -113,11 +113,12 @@ class RenderWrapper(gym.Wrapper):
         return (obs, r, done, info, lives)'''
 
 class AutomateFireAction(gym.Wrapper):
-    def __init__(self, env=None):
+    def __init__(self, env=None, penalize=0.0):
         super().__init__(env)
         assert env.unwrapped.get_action_meanings()[1] == 'FIRE'
         self.lives = None
         self.last = 0.0
+        self.penalize = penalize
     def reset(self):
         obs, lives = self.env.reset()
         self.lives = lives["lives"]
@@ -129,7 +130,10 @@ class AutomateFireAction(gym.Wrapper):
         if self.last > self.lives:
             self.last = self.lives
             obs, r, done, info, lives = self.env.step(1)
-            return obs, r, done, info, lives
+            if self.penalize:
+                return obs, r - self.penalize, done, info, lives
+            else:
+                return obs, r, done, info, lives
         self.last = self.lives
         return (obs, r, done, info, lives)
 

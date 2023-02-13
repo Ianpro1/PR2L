@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 
 parameters = {
-    "ENV_NAME":"PongNoFrameskip-v4",
+    "ENV_NAME":"Breakout-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
@@ -20,7 +20,7 @@ parameters = {
     "BETA_START":  0.4,
     'PRIO_REPLAY_ALPHA' : 0.6,
     'BETA_FRAMES' : 100000,
-    'penalize': False
+    'penalize': 1.0
 }
 
 
@@ -62,9 +62,8 @@ if __name__ == '__main__':
 
     env = make_env(parameters['ENV_NAME'], LiveRendering=True)
     env1 = make_env(parameters['ENV_NAME'], LiveRendering=False)
-    env2 = make_env(parameters['ENV_NAME'], LiveRendering=False) #no sure this is optimal for an argmaxselection agent
+    env2 = make_env(parameters['ENV_NAME'], LiveRendering=False)
 
-    
     
     device = "cuda"
     preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
@@ -98,12 +97,13 @@ if __name__ == '__main__':
     beta = parameters["BETA_START"]
     
     
-    '''net.load_state_dict(torch.load("Breakout-v4/2023-02-12/modelsave31_(12-10).pt"))
-    tgt_net.sync()'''
+    net.load_state_dict(torch.load("Breakout-v4/2023-02-12/modelsave31_(12-10).pt"))
+    tgt_net.sync()
 
     running = True
 
     while running:
+        
         idx += 1
         buffer.populate(1)
         beta = min(1.0, beta + idx * (1.0 - beta) / beta_frames)
@@ -127,19 +127,16 @@ if __name__ == '__main__':
                 break
         if len(buffer) < 2*parameters['BATCH_SIZE']:
             continue
-
+        
         batch, batch_idxs, batch_weights  = buffer.sample(parameters['BATCH_SIZE'], beta=beta)
         states, actions, rewards, last_states, dones = E.unpack_batch(batch, obs_shape)
-    
+
         last_states = preprocessor(last_states).to(device)
         rewards = preprocessor(rewards).to(device)
         with torch.no_grad(): #try to use numpy instead
-            tgt_q = net(last_states)
-            tgt_actions = torch.argmax(tgt_q, 1)
-            tgt_actions = tgt_actions.unsqueeze(1)
-            tgt_qs = tgt_net.target_model(last_states)
-            tgt_q_v = tgt_qs.gather(1, tgt_actions).squeeze(1)
-            tgt_q_v[dones] = 0.0
+            tgt_q = tgt_net.target_model(last_states)
+            tgt_q[dones] = 0.0
+            tgt_q_v, _ = tgt_q.max(1)
             q_v_refs = rewards + tgt_q_v * parameters['GAMMA']
 
         optimizer.zero_grad()
@@ -147,7 +144,6 @@ if __name__ == '__main__':
         actions = torch.tensor(actions).to(device)
         q_v = net(states)
         q_v = q_v.gather(1, actions.unsqueeze(1)).squeeze(1)
-
         batch_w_v = torch.tensor(batch_weights).to(device)
         losses = batch_w_v *(q_v - q_v_refs) **2
         loss = losses.mean()
