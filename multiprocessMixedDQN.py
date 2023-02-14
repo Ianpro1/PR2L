@@ -68,26 +68,17 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         env2 = make_env(parameters['ENV_NAME'], LiveRendering=False)
         env3 = make_env(parameters['ENV_NAME'], LiveRendering=False)
         env = [env1, env2, env3]
+        
         print(net)
-
+        
         preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
-        selector = ptan.actions.EpsilonGreedyActionSelector(1.0)
+        selector = ptan.actions.ArgmaxActionSelector()
         agent = ptan.agent.DQNAgent(net, action_selector=selector, device=device, preprocessor=preprocessor)
         exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=parameters.get('GAMMA', 0.99), steps_count=parameters['N_STEPS'])
-        
-        for i, exp in enumerate(exp_source):
-            exp_queue.put(exp)
-            if i > 5000:
-                break
-            for rewards, steps in exp_source.pop_rewards_steps():       
-                exp_queue.put(EpisodeEnded(rewards, steps))
 
-        selector.epsilon = 0.01
         for exp in exp_source:
             exp_queue.put(exp)
-            
-            for rewards, steps in exp_source.pop_rewards_steps():
-                
+            for rewards, steps in exp_source.pop_rewards_steps():   
                 exp_queue.put(EpisodeEnded(rewards, steps))
             
 
@@ -138,14 +129,14 @@ if __name__ == '__main__':
     obs_shape, n_actions = get_obs_act_n()
 
     net = models.NoisyDuelDQN(obs_shape, n_actions).to(device)
+    
     tgt_net = ptan.agent.TargetNet(net)
+    
+
     backup = E.ModelBackup(parameters['ENV_NAME'], net=net, notify=True)
+    
     writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)
 
-    print(net)
-    
-    for x in net.value_net[0].parameters():
-        print(x)
 
     class BatchGenerator:
         def __init__(self, buffer, exp_queue, initial, batch_size):
@@ -178,7 +169,7 @@ if __name__ == '__main__':
 
     play_proc = tmp.Process(target=play_func, args=(parameters, net, exp_queue, device, inconn))
     play_proc.start()
-    
+    #processes are losing weights
     
 
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
@@ -188,12 +179,7 @@ if __name__ == '__main__':
     BatchGen = BatchGenerator(buffer=buffer, exp_queue=exp_queue, initial= 2*parameters["BATCH_SIZE"], batch_size=parameters["BATCH_SIZE"])
 
     t1 = time.time()
-    
     while running:
-        
-        with open("save.txt", 'w') as f:
-            f.write(str(net.adv_net[0].state_dict()))
-        
         idx +=1
         
         beta = min(1.0, beta + idx * (1.0 - beta) / beta_frames)

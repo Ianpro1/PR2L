@@ -44,34 +44,22 @@ def init_bar(data_shape, height, bar_width, conn, pool=1):
         dmin = data.min()
         dmax = data.max()
         drange = dmax - dmin
-        scaled_v = (data - dmin )/ drange
-        scaled_v = np.floor(scaled_v * height)
-        scaled_v = scaled_v.astype(np.uint8)
-        print(scaled_v)
-        for i, x in enumerate(scaled_v):
-            
-            frame[i][:x] = 0
+        if drange !=0:
+            scaled_v = (data - dmin )/ drange
+            scaled_v = np.floor(scaled_v * height)
+            scaled_v = scaled_v.astype(np.uint8)
+        else:
+            scaled_v = data
         
+        for i, x in enumerate(scaled_v):
+            frame[i][:x] = 0
         frame = np.repeat(frame, bar_width, 0)
-        frame = np.repeat(frame, bar_width, dim=2)
         frame = (frame).astype(np.uint8)
-        print(frame.shape)
+        frame = np.array([frame] * 3).transpose(1,2,0)
         pygame.surfarray.blit_array(screen, frame)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
-
-
-
-
-
-if __name__ == "__main__":
-    rint = np.random.randint(0, 245, size=(40,))
-    inconn, outconn = mp.Pipe()
-    p1 = mp.Process(target=init_bar, args=(rint.shape, 400, 10, outconn))
-    p1.start()
-    for x in range(1000):
-        rint = np.random.randint(0, 245, size=(40,))
-        inconn.send(rint)
+                     
