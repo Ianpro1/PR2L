@@ -14,7 +14,7 @@ import torch.multiprocessing as tmp
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
-    "ENV_NAME":"Breakout-v4",
+    "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
@@ -75,7 +75,8 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         selector = ptan.actions.ArgmaxActionSelector()
         agent = ptan.agent.DQNAgent(net, action_selector=selector, device=device, preprocessor=preprocessor)
         exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=parameters.get('GAMMA', 0.99), steps_count=parameters['N_STEPS'])
-
+        
+        time.sleep(3)
         for exp in exp_source:
             exp_queue.put(exp)
             for rewards, steps in exp_source.pop_rewards_steps():   
@@ -83,6 +84,7 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
             
 
 if __name__ == '__main__':
+
     tmp.set_start_method("spawn")
     inconn, outconn = tmp.Pipe()
 
@@ -129,7 +131,7 @@ if __name__ == '__main__':
     obs_shape, n_actions = get_obs_act_n()
 
     net = models.NoisyDuelDQN(obs_shape, n_actions).to(device)
-    
+    net.share_memory()
     tgt_net = ptan.agent.TargetNet(net)
     
 
@@ -167,11 +169,22 @@ if __name__ == '__main__':
     
     exp_queue = tmp.Queue(maxsize=Batch_MUL*2)
 
+    def completeReset(x):
+        if isinstance(x, torch.nn.Linear) or isinstance(x, torch.nn.Conv2d):
+            print(x)
+            x.reset_parameters()
+
     play_proc = tmp.Process(target=play_func, args=(parameters, net, exp_queue, device, inconn))
     play_proc.start()
+
+    time.sleep(3)
+    net.apply(completeReset)
+    for x in net.value_net.parameters():
+        print(x)
     #processes are losing weights
     
-
+    
+    
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
     idx = 0
     running = True
