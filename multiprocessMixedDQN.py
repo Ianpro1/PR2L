@@ -14,7 +14,7 @@ import torch.multiprocessing as tmp
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
-    "ENV_NAME":"PongNoFrameskip-v4",
+    "ENV_NAME":"Breakout-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
@@ -39,29 +39,32 @@ def get_obs_act_n():
     return obs_shape, n_actions
 
 class sendimg:
-        def __init__(self, inconn, frame_skip=2):
-            self.inconn = inconn
-            self.frame_skip = frame_skip
+    def __init__(self, inconn, frame_skip=2):
+        self.inconn = inconn
+        self.frame_skip = frame_skip
+        self.count = 0
+    def __call__(self, img):
+        self.count +=1
+        if self.count % self.frame_skip ==0:
             self.count = 0
-        def __call__(self, img):
-            self.count +=1
-            if self.count % self.frame_skip ==0:
-                self.count = 0
-                self.inconn.send(img)
-            return img
+            self.inconn.send(img)
+        return img
 
 def make_env(ENV_NAME, LiveRendering=False, inconn=None):
         env = gym.make(ENV_NAME)
-        if LiveRendering:
+        if LiveRendering: # or if inconn is not None
             env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=4))
+            pass
         env = atari_wrappers.AutomateFireAction(env)
         env = atari_wrappers.FireResetEnv(env)
-        env = atari_wrappers.MaxAndSkipEnv(env)
+        env = atari_wrappers.MaxAndSkipEnv(env, skip=3)
         env = atari_wrappers.ProcessFrame84(env)
         env = atari_wrappers.reshapeWrapper(env)
         env = atari_wrappers.ScaledFloatFrame(env, 148.)
         env = atari_wrappers.BufferWrapper(env, 3)
         env = atari_wrappers.oldStepWrapper(env)
+        '''if LiveRendering:
+            env = atari_wrappers.LiveRenderWrapper(env, sendimg(inconn, frame_skip=4))'''
         return env
 
 def play_func(parameters, net, exp_queue, device, inconn=None):
@@ -81,10 +84,15 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=parameters.get('GAMMA', 0.99), steps_count=parameters['N_STEPS'])
         
         time.sleep(3)
-        Rendering.params_toDataFrame(net, path="output2.csv")
-
+        Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")
+        idz = 0
         for exp in exp_source:
+            idz +=1
             exp_queue.put(exp)
+
+            '''if idz % 500 == 0:
+                Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")'''
+
             for rewards, steps in exp_source.pop_rewards_steps():   
                 exp_queue.put(EpisodeEnded(rewards, steps))
             
@@ -145,7 +153,7 @@ if __name__ == '__main__':
     inconn, outconn = tmp.Pipe()
 
     #init display
-    p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 320, 420))
+    p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 320, 420, (210, 160)))
     p1.start()
 
 
@@ -154,8 +162,9 @@ if __name__ == '__main__':
     Batch_MUL = 4
     
     obs_shape, n_actions = get_obs_act_n()
-
+    
     net = models.NoisyDuelDQN(obs_shape, n_actions).to(device)
+    
     net.share_memory()
     tgt_net = ptan.agent.TargetNet(net)
     backup = E.ModelBackup(parameters['ENV_NAME'], net=net, notify=True)
@@ -167,10 +176,10 @@ if __name__ == '__main__':
     play_proc.start()
 
     time.sleep(3)
+
     net.apply(models.network_reset)
     tgt_net.sync()
-
-
+    
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
     idx = 0
     running = True
@@ -179,7 +188,8 @@ if __name__ == '__main__':
 
     t1 = time.time()
 
-    Rendering.params_toDataFrame(net)
+    Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
+    Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
     loss=None
     while running:
         idx +=1
@@ -210,8 +220,11 @@ if __name__ == '__main__':
         buffer.update_priorities(batch_idxs,sample_prios_v.data.cpu().numpy())
         writer.add_scalar("loss", loss, idx)  
 
+        '''if idx %1000 == 0:
+            Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
+            Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")'''
+            
         if idx % parameters['TGT_NET_SYNC'] ==0:
-        
             tgt_net.sync()
     
         if idx % 40000 == 0:

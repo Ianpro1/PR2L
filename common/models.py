@@ -222,5 +222,4 @@ def network_reset(layer):
     #useful for disapearing parameters in multiprocessing cases where a cuda network is shared across processes
     #example: net.apply(network_reset)
         if isinstance(layer, (nn.Linear, nn.Conv2d)):
-            print(layer)
             layer.reset_parameters()

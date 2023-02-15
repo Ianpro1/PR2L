@@ -9,6 +9,7 @@ import ptan
 
 net = NoisyDuelDQN((3,84,84), 4)
 import pandas as pd
+<<<<<<< HEAD
 import numpy as np
 import common.extentions as E
 import time
@@ -57,3 +58,5 @@ print(
 transpose -> moveaxis
 
 """
+=======
+>>>>>>> b342a29fb923b029c72a4752508015d3a85cff43
