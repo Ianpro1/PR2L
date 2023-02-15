@@ -14,7 +14,7 @@ import torch.multiprocessing as tmp
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
-    "ENV_NAME":"Breakout-v4",
+    "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
@@ -57,7 +57,7 @@ def make_env(ENV_NAME, LiveRendering=False, inconn=None):
             pass
         env = atari_wrappers.AutomateFireAction(env)
         env = atari_wrappers.FireResetEnv(env)
-        env = atari_wrappers.MaxAndSkipEnv(env, skip=3)
+        env = atari_wrappers.MaxAndSkipEnv(env, skip=4)
         env = atari_wrappers.ProcessFrame84(env)
         env = atari_wrappers.reshapeWrapper(env)
         env = atari_wrappers.ScaledFloatFrame(env, 148.)
@@ -220,9 +220,9 @@ if __name__ == '__main__':
         buffer.update_priorities(batch_idxs,sample_prios_v.data.cpu().numpy())
         writer.add_scalar("loss", loss, idx)  
 
-        '''if idx %1000 == 0:
+        if idx %1000 == 0:
             Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
-            Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")'''
+            #Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
             
         if idx % parameters['TGT_NET_SYNC'] ==0:
             tgt_net.sync()
