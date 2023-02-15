@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import math
 import torch.nn.functional as F
+
 class DenseDQN(nn.Module):
     def __init__(self, input ,HIDDEN, output):
         super().__init__()
@@ -215,8 +216,11 @@ class A2C(nn.Module):
         value = self.value(conv_out)
         return act_v, value
 
-        
 
 
-
-
+def network_reset(layer):
+    #useful for disapearing parameters in multiprocessing cases where a cuda network is shared across processes
+    #example: net.apply(network_reset)
+        if isinstance(layer, (nn.Linear, nn.Conv2d)):
+            print(layer)
+            layer.reset_parameters()

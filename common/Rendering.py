@@ -1,9 +1,64 @@
 import multiprocessing as mp
 import numpy as np
-import time
 import pygame
+import torch
+import pandas as pd
+
+class params_toDataFrame:
+    #create an output file or returns a pandas DataFrame on demand which contains labeled parameters of the network
+    #arguments: mean, max, min, rainbow-> return all
+    @torch.no_grad()
+    def __init__(self, net, func="rainbow", path="output.csv"):
+        assert isinstance(func, str)
+        names = []
+        params = []
+        column = None
+        if func == 'mean':
+            func = self.layer_mean
+        elif func == 'min':
+            func = self.layer_min
+        elif func == 'max':
+            func = self.layer_max
+        elif func == 'rainbow':
+            func = self.layer_rainbow
+            column = ["max", "mean", "min"]
+        else:
+            raise ValueError(func + " does not exist!")
+        
+        for name, param in net.named_parameters():
+            names.append(name)
+            params.append(func(param))
+
+        if column is not None:
+            frame = pd.DataFrame(params, index=names, columns=column)
+        else:
+            frame = pd.DataFrame(params, index=names)
+        self.frame = frame
+        frame.to_csv(path)
+
+    @staticmethod
+    def layer_mean(layer):
+        return layer.cpu().mean().numpy()
+    @staticmethod
+    def layer_max(layer):
+        return layer.cpu().max().numpy()
+    @staticmethod
+    def layer_min(layer):
+        return layer.cpu().min().numpy()
+    @staticmethod
+    def layer_rainbow(layer):
+        max = layer.cpu().max().numpy()
+        mean = layer.cpu().mean().numpy()
+        min = layer.cpu().min().numpy()
+        return [max, mean, min]
+    
+    def get(self):
+        return self.frame
+
+
 
 def init_display(conn, width, height):
+    #creates a pygame instance of rgb_array upon receive from a Pipe() (used for live rendering of agent)
     pygame.init()
     screen = pygame.display.set_mode((width, height))
     while True:
@@ -25,8 +80,9 @@ def init_display(conn, width, height):
                 return
 
 
+
 def init_bar(data_shape, height, bar_width, conn, pool=1):
-    
+    #creates a pygame instance of a bar chart of user-defined pixel length (this can be used for live rendering)
     if len(data_shape) != 1:
         raise MemoryError
     pygame.init()
@@ -62,4 +118,6 @@ def init_bar(data_shape, height, bar_width, conn, pool=1):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
-                     
+               
+
+

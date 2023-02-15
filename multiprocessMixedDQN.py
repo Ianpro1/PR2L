@@ -28,11 +28,15 @@ parameters = {
 }
 
 device = "cuda"
-epsilon_frames = 10000
 beta_frames= parameters["BETA_FRAMES"]
 beta = parameters["BETA_START"]
 preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
 
+def get_obs_act_n():
+    env = make_env(parameters['ENV_NAME'], LiveRendering=False)
+    obs_shape = env.observation_space.shape
+    n_actions = env.action_space.n
+    return obs_shape, n_actions
 
 class sendimg:
         def __init__(self, inconn, frame_skip=2):
@@ -77,11 +81,63 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=parameters.get('GAMMA', 0.99), steps_count=parameters['N_STEPS'])
         
         time.sleep(3)
+        Rendering.params_toDataFrame(net, path="output2.csv")
+
         for exp in exp_source:
             exp_queue.put(exp)
             for rewards, steps in exp_source.pop_rewards_steps():   
                 exp_queue.put(EpisodeEnded(rewards, steps))
             
+def calc_loss(states, actions, rewards, last_states, dones, tgt_net, net):
+    last_states = preprocessor(last_states).to(device)
+    
+    with torch.no_grad(): #try to use numpy instead
+        tgt_q = net(last_states)
+        tgt_actions = torch.argmax(tgt_q, 1)
+        tgt_actions = tgt_actions.unsqueeze(1)
+        tgt_qs = tgt_net.target_model(last_states)
+        tgt_q_v = tgt_qs.gather(1, tgt_actions).squeeze(1)
+
+    tgt_q_v[dones] = 0.0
+    rewards = preprocessor(rewards).to(device)
+    q_v_refs = rewards + tgt_q_v * parameters['GAMMA']
+    optimizer.zero_grad()
+    states = preprocessor(states).to(device)
+    actions = torch.tensor(actions).to(device)
+    q_v = net(states)
+    q_v = q_v.gather(1, actions.unsqueeze(1)).squeeze(1)
+
+    batch_w_v = torch.tensor(batch_weights).to(device)
+    losses = batch_w_v *(q_v - q_v_refs) **2
+    loss = losses.mean()
+    sample_prios_v = losses + 1e-5
+    return loss, sample_prios_v
+
+class BatchGenerator:
+    def __init__(self, buffer, exp_queue, initial, batch_size):
+        self.buffer = buffer
+        self.exp_queue = exp_queue
+        self.initial = initial
+        self.batch_size = batch_size
+        self.rewardSteps = []
+        
+    def pop_rewards_steps(self):
+        res = list(self.rewardSteps)
+        self.rewardSteps.clear()
+        return res
+    
+    def __iter__(self):
+        while True:
+            while self.exp_queue.qsize() > 0:
+                exp = self.exp_queue.get()
+                if isinstance(exp, EpisodeEnded):
+                    self.rewardSteps.append((exp.reward, exp.steps))
+                else:
+                    self.buffer._add(exp)
+                    
+            if len(self.buffer) < self.initial:
+                continue
+            yield self.buffer.sample(self.batch_size*Batch_MUL, beta=beta)
 
 if __name__ == '__main__':
 
@@ -93,98 +149,28 @@ if __name__ == '__main__':
     p1.start()
 
 
-    def calc_loss(states, actions, rewards, last_states, dones, tgt_net, net):
-                last_states = preprocessor(last_states).to(device)
-                
-                with torch.no_grad(): #try to use numpy instead
-                    tgt_q = net(last_states)
-                    tgt_actions = torch.argmax(tgt_q, 1)
-                    tgt_actions = tgt_actions.unsqueeze(1)
-                    tgt_qs = tgt_net.target_model(last_states)
-                    tgt_q_v = tgt_qs.gather(1, tgt_actions).squeeze(1)
-
-                tgt_q_v[dones] = 0.0
-                rewards = preprocessor(rewards).to(device)
-                q_v_refs = rewards + tgt_q_v * parameters['GAMMA']
-                optimizer.zero_grad()
-                states = preprocessor(states).to(device)
-                actions = torch.tensor(actions).to(device)
-                q_v = net(states)
-                q_v = q_v.gather(1, actions.unsqueeze(1)).squeeze(1)
-
-                batch_w_v = torch.tensor(batch_weights).to(device)
-                losses = batch_w_v *(q_v - q_v_refs) **2
-                loss = losses.mean()
-                sample_prios_v = losses + 1e-5
-                return loss, sample_prios_v
-
     #multiprocessing for training
     
     Batch_MUL = 4
-
-    def get_obs_act_n():
-        env = make_env(parameters['ENV_NAME'], LiveRendering=False)
-        obs_shape = env.observation_space.shape
-        n_actions = env.action_space.n
-        return obs_shape, n_actions
     
     obs_shape, n_actions = get_obs_act_n()
 
     net = models.NoisyDuelDQN(obs_shape, n_actions).to(device)
     net.share_memory()
     tgt_net = ptan.agent.TargetNet(net)
-    
-
     backup = E.ModelBackup(parameters['ENV_NAME'], net=net, notify=True)
-    
-    writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)
-
-
-    class BatchGenerator:
-        def __init__(self, buffer, exp_queue, initial, batch_size):
-            self.buffer = buffer
-            self.exp_queue = exp_queue
-            self.initial = initial
-            self.batch_size = batch_size
-            self.rewardSteps = []
-            
-        def pop_rewards_steps(self):
-            res = list(self.rewardSteps)
-            self.rewardSteps.clear()
-            return res
-        
-        def __iter__(self):
-            while True:
-                while self.exp_queue.qsize() > 0:
-                    exp = self.exp_queue.get()
-                    if isinstance(exp, EpisodeEnded):
-                        self.rewardSteps.append((exp.reward, exp.steps))
-                    else:
-                        self.buffer._add(exp)
-                        
-                if len(self.buffer) < self.initial:
-                    continue
-                yield self.buffer.sample(self.batch_size*Batch_MUL, beta=beta)
-    
+    writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)  
     
     exp_queue = tmp.Queue(maxsize=Batch_MUL*2)
-
-    def completeReset(x):
-        if isinstance(x, torch.nn.Linear) or isinstance(x, torch.nn.Conv2d):
-            print(x)
-            x.reset_parameters()
 
     play_proc = tmp.Process(target=play_func, args=(parameters, net, exp_queue, device, inconn))
     play_proc.start()
 
     time.sleep(3)
-    net.apply(completeReset)
-    for x in net.value_net.parameters():
-        print(x)
-    #processes are losing weights
-    
-    
-    
+    net.apply(models.network_reset)
+    tgt_net.sync()
+
+
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
     idx = 0
     running = True
@@ -192,14 +178,17 @@ if __name__ == '__main__':
     BatchGen = BatchGenerator(buffer=buffer, exp_queue=exp_queue, initial= 2*parameters["BATCH_SIZE"], batch_size=parameters["BATCH_SIZE"])
 
     t1 = time.time()
+
+    Rendering.params_toDataFrame(net)
+    loss=None
     while running:
         idx +=1
-        
         beta = min(1.0, beta + idx * (1.0 - beta) / beta_frames)
 
         for rewards, steps in BatchGen.pop_rewards_steps():
             t2 = time.time() - t1
             print("idx %d, steps %d, reward=%.3f rewards, elapsed: %.1f" %(idx,steps,rewards, t2))
+            print("loss %.3f" % (loss))
             writer.add_scalar("rewards", rewards, idx)
             writer.add_scalar("steps", steps, idx)
             
@@ -219,11 +208,7 @@ if __name__ == '__main__':
         optimizer.step()
 
         buffer.update_priorities(batch_idxs,sample_prios_v.data.cpu().numpy())
-        writer.add_scalar("loss", loss, idx)
-
-        if idx % 20 == 0:
-            print("loss %.3f" % (loss))
-    
+        writer.add_scalar("loss", loss, idx)  
 
         if idx % parameters['TGT_NET_SYNC'] ==0:
         

@@ -7,6 +7,7 @@ import collections
 
 # custom wrappers
 class functionalObservationWrapper(gym.ObservationWrapper):
+    #applies any function to obs
     def __init__(self, env, func):
         super().__init__(env)
         self.F = func

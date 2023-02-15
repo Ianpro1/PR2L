@@ -1,9 +1,8 @@
 #this file is for testing purposes with a dumb linear environment
 import numpy as np
-import time
-import ptan
 import gym
 class DummyEnv(gym.Env):
+    # environment that performs simple actions (user-defined)
     # configured as a gym env from ~ v0.26
     def __init__(self, observation_shape, reward_value=1.0, reward_func=None, observation_func=None, done_func=None, userWarning=True):
         self.r_value = reward_value
@@ -64,6 +63,7 @@ class DummyEnv(gym.Env):
             return obs
 
 class OldDummyWrapper(DummyEnv):
+    #wraps the DummyEnv class to configure it as an older version of gym environments
     def __init__(self, env):
         self.env = env
 
@@ -76,8 +76,9 @@ class OldDummyWrapper(DummyEnv):
         return obs
 
 #example of custom processing
+
 class EpisodeLength:
-    #ends episode after (n-1)-steps the nth step returns done
+    #ends episode after n-1 steps (the nth step returns done)
     def __init__(self, length):
         self.len = length
         self.count = 0
@@ -90,6 +91,7 @@ class EpisodeLength:
             return False
 
 class VaryObservation:
+    #returns random pixel image observation of integer values 0->255 (in this case shape is user-defined)
     @staticmethod
     def __call__(x):
         x = np.random.randint(0, 255, size=x.shape)

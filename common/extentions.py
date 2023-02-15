@@ -10,7 +10,7 @@ import datetime
 
 class preprocessor:
     # process data from environment to any compatible type 
-    # Note: inherit class should be used like wrappers
+    # Note: child instances of this class should be used like wrappers
     def __init__(self, pre_p=None):
         if pre_p is None:
             self.pre_p = lambda x: x
@@ -42,7 +42,10 @@ class FloatTensor_preprocessor(preprocessor):
 
 
 #batch handeling
-def unpack_batch(batch, obs_shape): # return states, actions, calculated tgt_q_v = r + tgt_net(last_state)*GAMMA
+
+def unpack_batch(batch, obs_shape): 
+    # returns: states, actions, calculated tgt_q_v => r + tgt_net(last_state)*GAMMA
+    #used for most basic DQN
     states = []
     rewards = []
     actions = []
@@ -63,6 +66,7 @@ def unpack_batch(batch, obs_shape): # return states, actions, calculated tgt_q_v
     return states, actions, rewards, last_states, dones
     
 def calc_grad(net):
+    #function to calculate the max and mean gradients of network
     grad_max = 0
     grad_count = 0
     grad_means = 0
@@ -70,10 +74,10 @@ def calc_grad(net):
         grad_max = max(grad_max, p.grad.abs().max().item())
         grad_means += (p.grad ** 2).mean().sqrt().item()
         grad_count += 1
-
     return grad_means/grad_count, grad_max
     
 def meanmax_weight(net):
+    #(deprecated) more optimal version in rendering module
     mean_w = []
     max_w = []
     for x in net.parameters():
@@ -82,7 +86,9 @@ def meanmax_weight(net):
     return mean_w, max_w
     
 #model save
+
 class ModelBackup:
+    #simple class to save the model parameters and configs
     def __init__(self, root, net, notify=True, Temp_disable=False):
         self.dateroot = str(datetime.datetime.now().date())
         self.date = datetime.datetime.now().strftime("(%H-%M)")
@@ -95,8 +101,10 @@ class ModelBackup:
         self.root = root
         self.notify=notify
         self.id = 0
-            
+
+    #upon calling save() parameters should be either None or dictionnary containing configs
     def save(self, parameters=None):
+        assert isinstance(parameters, (dict, None))
         if self.Temp_disable:
             return None
         name = "modelsave%d_"%self.id + self.date + ".pt"
@@ -112,7 +120,9 @@ class ModelBackup:
         self.date = self.date = datetime.datetime.now().strftime("(%H-%M)")
 
 #rendering
+
 def playandsave_episode(render_source, env):
+    #to upgrade
     assert type(render_source) == ptan.experience.ExperienceSource
     print("Warning: Possible Reduced Frames, Make sure to use special wrapper for frame-skip")
     for i, x in enumerate(render_source):
@@ -122,6 +132,7 @@ def playandsave_episode(render_source, env):
            break
 
 def create_video(frames, output_filename):
+    #to upgrade
     height, width, channels = frames[0].shape
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # codec for MP4 video
     video = cv2.VideoWriter(output_filename, fourcc, 30.0, (width, height))

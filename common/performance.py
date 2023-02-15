@@ -1,6 +1,8 @@
 import time
 import math
+
 class timer:
+    
     def __init__(self):
         self.s = None
 
@@ -15,7 +17,7 @@ class timer:
         print("time elapsed: %.3f" % t)
         raise TimeoutError
 
-
+#unstable (risk of dividing by 0 error)
 class calc_FPS:
     def __init__(self, treshold=10):
         self.delta_frames = 0
