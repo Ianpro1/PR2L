@@ -9,6 +9,3 @@ import ptan
 
 net = NoisyDuelDQN((3,84,84), 4)
 import pandas as pd
-import numpy as np
-
-

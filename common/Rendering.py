@@ -57,21 +57,23 @@ class params_toDataFrame:
 
 
 
-def init_display(conn, width, height):
+def init_display(conn, width, height, frame_shape):
     #creates a pygame instance of rgb_array upon receive from a Pipe() (used for live rendering of agent)
     pygame.init()
     screen = pygame.display.set_mode((width, height))
     while True:
         #print("receiving...")
         frame = conn.recv()
+        
         #print(frame.shape)
         if frame is None:
             break
         screen.fill((255, 255, 255))
         frame = np.array(frame, dtype=np.float32).transpose(1,0,2)
-        frame = np.repeat(frame, height // 210, axis=0)
-        frame = np.repeat(frame, width // 160, axis=1)
+        frame = np.repeat(frame, height // frame_shape[0], axis=0)
+        frame = np.repeat(frame, width // frame_shape[1], axis=1)
         frame = (frame).astype(np.uint8)
+        
         pygame.surfarray.blit_array(screen, frame)
         pygame.display.update()
         for event in pygame.event.get():

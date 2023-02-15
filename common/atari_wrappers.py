@@ -7,12 +7,29 @@ import collections
 
 # custom wrappers
 class functionalObservationWrapper(gym.ObservationWrapper):
-    #applies any function to obs
+    #applies any function to observation
+    #example: functionalObservationWrapper(env, sendimg(inconn, frame_skip=4)) -> for live rendering from the raw inputs
     def __init__(self, env, func):
         super().__init__(env)
         self.F = func
     def observation(self, obs):
         return self.F(obs)
+
+class LiveRenderWrapper(gym.Wrapper):
+    #basic liverender wrapper although it is preferable to use funtionalObservationWrapper
+    #Note: configured as an old env wrapper with 4 and 1 expected outputs from step() and reset(), respectively
+    def __init__(self, env, func):
+        super().__init__(env)
+        self.F = func
+    def step(self, action):
+        obs = self.env.step(action)
+        self.F(obs[0])
+        return obs
+
+    def reset(self):
+        obs = self.env.reset()
+        self.F(obs)
+        return obs
 
 class reshapeWrapper(gym.ObservationWrapper):
     def __init__(self, env):
@@ -243,6 +260,7 @@ class ScaledFloatFrame(gym.ObservationWrapper):
 
 
 class BufferWrapper(gym.ObservationWrapper):
+    #creates n channels for n steps
     def __init__(self, env, n_steps, dtype=np.float32):
         super(BufferWrapper, self).__init__(env)
         self.dtype = dtype
