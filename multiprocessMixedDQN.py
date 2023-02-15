@@ -47,13 +47,13 @@ class sendimg:
         self.count +=1
         if self.count % self.frame_skip ==0:
             self.count = 0
-            self.inconn.send(img)
+            self.inconn.send(img.transpose(1,2,0) * 255.)
         return img
 
 def make_env(ENV_NAME, LiveRendering=False, inconn=None):
         env = gym.make(ENV_NAME)
         if LiveRendering: # or if inconn is not None
-            env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=4))
+            #env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=4))
             pass
         env = atari_wrappers.AutomateFireAction(env)
         env = atari_wrappers.FireResetEnv(env)
@@ -63,8 +63,8 @@ def make_env(ENV_NAME, LiveRendering=False, inconn=None):
         env = atari_wrappers.ScaledFloatFrame(env, 148.)
         env = atari_wrappers.BufferWrapper(env, 3)
         env = atari_wrappers.oldStepWrapper(env)
-        '''if LiveRendering:
-            env = atari_wrappers.LiveRenderWrapper(env, sendimg(inconn, frame_skip=4))'''
+        if LiveRendering:
+            env = atari_wrappers.LiveRenderWrapper(env, sendimg(inconn, frame_skip=4))
         return env
 
 def play_func(parameters, net, exp_queue, device, inconn=None):
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     inconn, outconn = tmp.Pipe()
 
     #init display
-    p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 320, 420, (210, 160)))
+    p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 168, 168, (84, 84)))
     p1.start()
 
 
@@ -187,7 +187,7 @@ if __name__ == '__main__':
     BatchGen = BatchGenerator(buffer=buffer, exp_queue=exp_queue, initial= 2*parameters["BATCH_SIZE"], batch_size=parameters["BATCH_SIZE"])
 
     t1 = time.time()
-
+ 
     Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
     Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
     loss=None
@@ -230,8 +230,3 @@ if __name__ == '__main__':
         if idx % 40000 == 0:
             backup.save(parameters=parameters)
     
-
-
-
-
-        

@@ -1,15 +1,3 @@
-import torch.multiprocessing as mp
-from common.models import NoisyDuelDQN
-import time
-from common.extentions import ModelBackup
-import torch.nn as nn
-import torch
-import ptan
-
-
-net = NoisyDuelDQN((3,84,84), 4)
-import pandas as pd
-<<<<<<< HEAD
 import numpy as np
 import common.extentions as E
 import time
@@ -58,5 +46,3 @@ print(
 transpose -> moveaxis
 
 """
-=======
->>>>>>> b342a29fb923b029c72a4752508015d3a85cff43
