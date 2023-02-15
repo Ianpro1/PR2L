@@ -220,9 +220,9 @@ if __name__ == '__main__':
         buffer.update_priorities(batch_idxs,sample_prios_v.data.cpu().numpy())
         writer.add_scalar("loss", loss, idx)  
 
-        '''if idx %1000 == 0:
+        if idx %1000 == 0:
             Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
-            Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")'''
+            #Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
             
         if idx % parameters['TGT_NET_SYNC'] ==0:
             tgt_net.sync()
