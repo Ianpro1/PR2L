@@ -16,10 +16,10 @@ EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 parameters = {
     "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
-    "LEARNING_RATE":1e-4,
+    "LEARNING_RATE":5e-5,
     "GAMMA":0.99,
     "N_STEPS":4,
-    "TGT_NET_SYNC":250,
+    "TGT_NET_SYNC":500,
     "BATCH_SIZE":32,
     "REPLAY_SIZE":10000,
     "BETA_START":  0.4,
@@ -88,8 +88,8 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
             idz +=1
             exp_queue.put(exp)
             
-            if idz % 500 == 0:
-                Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")
+            '''if idz % 500 == 0:
+                Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")'''
 
             for rewards, steps in exp_source.pop_rewards_steps():   
                 exp_queue.put(EpisodeEnded(rewards, steps))
@@ -178,6 +178,7 @@ if __name__ == '__main__':
     time.sleep(3)
 
     net.apply(models.network_reset)
+    #net.load_state_dict(torch.load("-v4/modelsave0_().pt"))
     tgt_net.sync()
     
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
@@ -188,7 +189,6 @@ if __name__ == '__main__':
     BatchGen = BatchGenerator(buffer=buffer, exp_queue=exp_queue, initial= 2*parameters["BATCH_SIZE"], batch_size=parameters["BATCH_SIZE"])
 
     t1 = time.time()
- 
     Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
     Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
     loss=None
@@ -198,7 +198,7 @@ if __name__ == '__main__':
 
         for rewards, steps in BatchGen.pop_rewards_steps():
             t2 = time.time() - t1
-            print("idx %d, steps %d, reward=%.3f rewards, elapsed: %.1f" %(idx,steps,rewards, t2))
+            print("idx %d, steps %d, reward=%.1f rewards, elapsed: %.1f" %(idx,steps,rewards, t2))
             print("loss %.3f" % (loss))
             writer.add_scalar("rewards", rewards, idx)
             writer.add_scalar("steps", steps, idx)
@@ -212,7 +212,7 @@ if __name__ == '__main__':
                 continue
         
         #batch, batch_idxs, batch_weights = next(iter(BatchGen))
-        batch = next(iter(BatchGen))
+        batch = next(iter(BatchGen)) #might be better to do a for loop
         states, actions, rewards, last_states, dones = E.unpack_batch(batch, obs_shape)
         loss, sample_prios_v = calc_loss(states, actions, rewards, last_states, dones, tgt_net, net)
         loss.backward()
@@ -221,7 +221,7 @@ if __name__ == '__main__':
         #buffer.update_priorities(batch_idxs,sample_prios_v.data.cpu().numpy())
         writer.add_scalar("loss", loss, idx)  
 
-        if idx %1000 == 0:
+        if idx %5000 == 0:
             Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
             #Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
         
