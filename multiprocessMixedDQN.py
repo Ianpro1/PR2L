@@ -14,7 +14,7 @@ import torch.multiprocessing as tmp
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
-    "ENV_NAME":"Breakout-v4",
+    "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
@@ -57,7 +57,7 @@ def make_env(ENV_NAME, LiveRendering=False, inconn=None):
             pass
         env = atari_wrappers.AutomateFireAction(env)
         env = atari_wrappers.FireResetEnv(env)
-        env = atari_wrappers.MaxAndSkipEnv(env, skip=3)
+        env = atari_wrappers.MaxAndSkipEnv(env, skip=4)
         env = atari_wrappers.ProcessFrame84(env)
         env = atari_wrappers.reshapeWrapper(env)
         env = atari_wrappers.ScaledFloatFrame(env, 148.)
