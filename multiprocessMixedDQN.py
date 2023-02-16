@@ -107,13 +107,12 @@ def calc_loss(states, actions, rewards, last_states, dones, tgt_net, net):
         tgt_qs = tgt_net.target_model(last_states)
         tgt_q_v = tgt_qs.gather(1, tgt_actions).squeeze(1)
         tgt_q_v[dones] = 0.0
-        q_v_refs = rewards + tgt_q_v.detach() * parameters['GAMMA']
+        q_v_refs = rewards + tgt_q_v * parameters['GAMMA']
     
     optimizer.zero_grad()
     q_v = net(states)
     q_v = q_v.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-    
     losses = (q_v - q_v_refs) **2
     #losses = batch_w_v * losses
     loss = losses.mean()
@@ -127,7 +126,7 @@ class BatchGenerator:
         self.initial = initial
         self.batch_size = batch_size
         self.rewardSteps = []
-        
+
     def pop_rewards_steps(self):
         res = list(self.rewardSteps)
         self.rewardSteps.clear()
