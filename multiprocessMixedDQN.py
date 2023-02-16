@@ -98,25 +98,26 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
             
 def calc_loss(states, actions, rewards, last_states, dones, tgt_net, net):
     last_states = preprocessor(last_states).to(device)
-    
+    rewards = preprocessor(rewards).to(device)
+    states = preprocessor(states).to(device)
+    actions = torch.tensor(actions).to(device)
+
     with torch.no_grad(): #try to use numpy instead
         tgt_q = net(last_states)
         tgt_actions = torch.argmax(tgt_q, 1)
         tgt_actions = tgt_actions.unsqueeze(1)
         tgt_qs = tgt_net.target_model(last_states)
         tgt_q_v = tgt_qs.gather(1, tgt_actions).squeeze(1)
-
-    tgt_q_v[dones] = 0.0
-    rewards = preprocessor(rewards).to(device)
-    q_v_refs = rewards + tgt_q_v * parameters['GAMMA']
+        tgt_q_v[dones] = 0.0
+        q_v_refs = rewards + tgt_q_v.detach() * parameters['GAMMA']
+    
     optimizer.zero_grad()
-    states = preprocessor(states).to(device)
-    actions = torch.tensor(actions).to(device)
     q_v = net(states)
     q_v = q_v.gather(1, actions.unsqueeze(1)).squeeze(1)
 
     batch_w_v = torch.tensor(batch_weights).to(device)
-    losses = batch_w_v *(q_v - q_v_refs) **2
+    losses = (q_v - q_v_refs)**2
+    losses = batch_w_v * losses
     loss = losses.mean()
     sample_prios_v = losses + 1e-5
     return loss, sample_prios_v
@@ -163,7 +164,7 @@ if __name__ == '__main__':
     
     obs_shape, n_actions = get_obs_act_n()
     
-    net = models.NoisyDuelDQN(obs_shape, n_actions).to(device)
+    net = models.NoisyDualDQN(obs_shape, n_actions).to(device)
     
     net.share_memory()
     tgt_net = ptan.agent.TargetNet(net)

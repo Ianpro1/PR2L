@@ -21,7 +21,6 @@ class DenseDQN(nn.Module):
 class DQN(nn.Module):
     def __init__(self, input_shape, n_actions):
         super().__init__()
-        self.flat = nn.Flatten(1, 3)
         self.conv = nn.Sequential(
             nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
             nn.ReLU(),
@@ -43,12 +42,13 @@ class DQN(nn.Module):
         return int(np.prod(o.size()))
 
     def forward(self, x):
-        conv_out = self.flat(self.conv(x))
-        #print(conv_out.shape)
-        return self.fc(conv_out)
+        convx = self.conv(x)
+        convx = convx.view(convx.shape[0], -1)
+        #print(conv_out.shape)  
+        return self.fc(convx)
 
 
-class DuelDQN(nn.Module):
+class DualDQN(nn.Module):
     def __init__(self, input_shape, n_actions):
         super().__init__()
         self.conv = nn.Sequential(
@@ -58,7 +58,6 @@ class DuelDQN(nn.Module):
             nn.ReLU(),
             nn.Conv2d(64,64,kernel_size=3, stride=1),
             nn.ReLU(),
-            nn.Flatten(1,3)
         )
 
         conv_out = self._get_conv_out(input_shape)
@@ -79,6 +78,7 @@ class DuelDQN(nn.Module):
 
     def forward(self, x):
         convx = self.conv(x)
+        convx = convx.view(convx.shape[0], -1)
         values = self.value_net(convx)
         adv = self.adv_net(convx)
         adv_mean = torch.mean(adv, dim=1, keepdim=True)
@@ -143,8 +143,9 @@ class NoisyFactorizedLinear(nn.Linear):
     return F.linear(input, v, bias)
 
 
-class NoisyDuelDQN(nn.Module):
+class NoisyDualDQN(nn.Module):
     def __init__(self, input_shape, n_actions):
+        #input_shape is shape of observation as (filter, height, width) DO NOT CALL AS BATCH
         super().__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
@@ -156,10 +157,10 @@ class NoisyDuelDQN(nn.Module):
             nn.Conv2d(64,64,kernel_size=3, stride=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Flatten(1,-1)
         )
 
         conv_out = self._get_conv_out(input_shape)
+        
         self.value_net = nn.Sequential(
             NoisyLinear(conv_out, 256),
             nn.ReLU(),
@@ -177,6 +178,7 @@ class NoisyDuelDQN(nn.Module):
 
     def forward(self, x):
         convx = self.conv(x)
+        convx = convx.view(convx.shape[0], -1)
         values = self.value_net(convx)
         adv = self.adv_net(convx)
         adv_mean = torch.mean(adv, dim=1, keepdim=True)
@@ -194,7 +196,6 @@ class A2C(nn.Module):
             nn.ReLU(),
             nn.Conv2d(64,64,kernel_size=3, stride=1),
             nn.ReLU(),
-            nn.Flatten(1,-1)
         )
 
         conv_shape = self._get_conv_out(input_shape)
@@ -215,6 +216,7 @@ class A2C(nn.Module):
 
     def forward(self, x):
         conv_out = self.conv(x)
+        convx = convx.view(convx.shape[0], -1)
         act_v = self.policy(conv_out)
         value = self.value(conv_out)
         return act_v, value
