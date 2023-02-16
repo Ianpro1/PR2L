@@ -16,15 +16,15 @@ EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 parameters = {
     "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
-    "LEARNING_RATE":1e-4,
+    "LEARNING_RATE":5e-5,
     "GAMMA":0.99,
     "N_STEPS":4,
-    "TGT_NET_SYNC":1000,
+    "TGT_NET_SYNC":500,
     "BATCH_SIZE":32,
     "REPLAY_SIZE":10000,
     "BETA_START":  0.4,
     'PRIO_REPLAY_ALPHA' : 0.6,
-    'BETA_FRAMES' : 100000
+    'BETA_FRAMES' : 5000
 }
 
 device = "cuda"
@@ -33,7 +33,7 @@ beta = parameters["BETA_START"]
 preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
 
 def get_obs_act_n():
-    env = make_env(parameters['ENV_NAME'], LiveRendering=False)
+    env = make_env(parameters['ENV_NAME'])
     obs_shape = env.observation_space.shape
     n_actions = env.action_space.n
     return obs_shape, n_actions
@@ -47,14 +47,14 @@ class sendimg:
         self.count +=1
         if self.count % self.frame_skip ==0:
             self.count = 0
-            self.inconn.send(img.transpose(1,2,0) * 255.)
+            self.inconn.send(img)
         return img
 
-def make_env(ENV_NAME, LiveRendering=False, inconn=None):
+def make_env(ENV_NAME, inconn=None):
         env = gym.make(ENV_NAME)
-        if LiveRendering: # or if inconn is not None
-            #env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=4))
-            pass
+
+        if inconn is not None: # or if inconn is not None
+            env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=8)) 
         env = atari_wrappers.AutomateFireAction(env)
         env = atari_wrappers.FireResetEnv(env)
         env = atari_wrappers.MaxAndSkipEnv(env, skip=4)
@@ -63,17 +63,15 @@ def make_env(ENV_NAME, LiveRendering=False, inconn=None):
         env = atari_wrappers.ScaledFloatFrame(env, 148.)
         env = atari_wrappers.BufferWrapper(env, 3)
         env = atari_wrappers.oldStepWrapper(env)
-        if LiveRendering:
-            env = atari_wrappers.LiveRenderWrapper(env, sendimg(inconn, frame_skip=4))
+        '''if inconn is not None:
+            env = atari_wrappers.LiveRenderWrapper(env, sendimg(inconn, frame_skip=4))'''
         return env
 
 def play_func(parameters, net, exp_queue, device, inconn=None):
-        LiveRendering = True
-        if inconn is None:
-            LiveRendering = False
-        env1 = make_env(parameters['ENV_NAME'], LiveRendering=LiveRendering, inconn=inconn)
-        env2 = make_env(parameters['ENV_NAME'], LiveRendering=False)
-        env3 = make_env(parameters['ENV_NAME'], LiveRendering=False)
+
+        env1 = make_env(parameters['ENV_NAME'], inconn=inconn)
+        env2 = make_env(parameters['ENV_NAME'])
+        env3 = make_env(parameters['ENV_NAME'])
         env = [env1, env2, env3]
         
         print(net)
@@ -89,7 +87,7 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         for exp in exp_source:
             idz +=1
             exp_queue.put(exp)
-
+            
             '''if idz % 500 == 0:
                 Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")'''
 
@@ -101,7 +99,7 @@ def calc_loss(states, actions, rewards, last_states, dones, tgt_net, net):
     rewards = preprocessor(rewards).to(device)
     states = preprocessor(states).to(device)
     actions = torch.tensor(actions).to(device)
-
+    #batch_w_v = torch.tensor(batch_weights).to(device)
     with torch.no_grad(): #try to use numpy instead
         tgt_q = net(last_states)
         tgt_actions = torch.argmax(tgt_q, 1)
@@ -115,9 +113,9 @@ def calc_loss(states, actions, rewards, last_states, dones, tgt_net, net):
     q_v = net(states)
     q_v = q_v.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-    batch_w_v = torch.tensor(batch_weights).to(device)
-    losses = (q_v - q_v_refs)**2
-    losses = batch_w_v * losses
+    
+    losses = (q_v - q_v_refs) **2
+    #losses = batch_w_v * losses
     loss = losses.mean()
     sample_prios_v = losses + 1e-5
     return loss, sample_prios_v
@@ -143,10 +141,11 @@ class BatchGenerator:
                     self.rewardSteps.append((exp.reward, exp.steps))
                 else:
                     self.buffer._add(exp)
-                    
+            
             if len(self.buffer) < self.initial:
                 continue
-            yield self.buffer.sample(self.batch_size*Batch_MUL, beta=beta)
+            
+            yield self.buffer.sample(self.batch_size*Batch_MUL) #beta=beta
 
 if __name__ == '__main__':
 
@@ -154,7 +153,7 @@ if __name__ == '__main__':
     inconn, outconn = tmp.Pipe()
 
     #init display
-    p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 168, 168, (84, 84)))
+    p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 320, 420, (210, 160)))
     p1.start()
 
 
@@ -173,32 +172,33 @@ if __name__ == '__main__':
     
     exp_queue = tmp.Queue(maxsize=Batch_MUL*2)
 
-    play_proc = tmp.Process(target=play_func, args=(parameters, net, exp_queue, device, inconn))
+    play_proc = tmp.Process(target=play_func, args=(parameters, net, exp_queue, device, inconn)) #->inconn
     play_proc.start()
 
     time.sleep(3)
 
     net.apply(models.network_reset)
+    #net.load_state_dict(torch.load("-v4/modelsave0_().pt"))
     tgt_net.sync()
     
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
     idx = 0
     running = True
-    buffer = ptan.experience.PrioritizedReplayBuffer(experience_source=None,buffer_size=parameters["REPLAY_SIZE"], alpha=parameters["PRIO_REPLAY_ALPHA"])
+    buffer = ptan.experience.ExperienceReplayBuffer(None, parameters["REPLAY_SIZE"])
+    #buffer = ptan.experience.PrioritizedReplayBuffer(experience_source=None,buffer_size=parameters["REPLAY_SIZE"], alpha=parameters["PRIO_REPLAY_ALPHA"])
     BatchGen = BatchGenerator(buffer=buffer, exp_queue=exp_queue, initial= 2*parameters["BATCH_SIZE"], batch_size=parameters["BATCH_SIZE"])
 
     t1 = time.time()
- 
     Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
     Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
     loss=None
     while running:
         idx +=1
-        beta = min(1.0, beta + idx * (1.0 - beta) / beta_frames)
+        #beta = min(1.0, beta + idx * (1.0 - beta) / beta_frames)
 
         for rewards, steps in BatchGen.pop_rewards_steps():
             t2 = time.time() - t1
-            print("idx %d, steps %d, reward=%.3f rewards, elapsed: %.1f" %(idx,steps,rewards, t2))
+            print("idx %d, steps %d, reward=%.1f rewards, elapsed: %.1f" %(idx,steps,rewards, t2))
             print("loss %.3f" % (loss))
             writer.add_scalar("rewards", rewards, idx)
             writer.add_scalar("steps", steps, idx)
@@ -211,23 +211,23 @@ if __name__ == '__main__':
                 running=False
                 continue
         
-        batch, batch_idxs, batch_weights = next(iter(BatchGen))
-
+        #batch, batch_idxs, batch_weights = next(iter(BatchGen))
+        batch = next(iter(BatchGen)) #might be better to do a for loop
         states, actions, rewards, last_states, dones = E.unpack_batch(batch, obs_shape)
         loss, sample_prios_v = calc_loss(states, actions, rewards, last_states, dones, tgt_net, net)
         loss.backward()
         optimizer.step()
 
-        buffer.update_priorities(batch_idxs,sample_prios_v.data.cpu().numpy())
+        #buffer.update_priorities(batch_idxs,sample_prios_v.data.cpu().numpy())
         writer.add_scalar("loss", loss, idx)  
 
-        if idx %1000 == 0:
+        if idx %5000 == 0:
             Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
             #Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
-            
+        
         if idx % parameters['TGT_NET_SYNC'] ==0:
+            print("sync...")
             tgt_net.sync()
     
         if idx % 40000 == 0:
             backup.save(parameters=parameters)
-    

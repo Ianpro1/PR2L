@@ -42,7 +42,7 @@ if __name__ == '__main__':
                 inconn.send(img)
             return img
 
-    p1 = mp.Process(target=Rendering.init_display, args=(outconn, 320, 420))
+    p1 = mp.Process(target=Rendering.init_display, args=(outconn, 320, 420, (210, 160)))
     p1.start()
     
     def make_env(ENV_NAME, LiveRendering=False):
@@ -72,8 +72,8 @@ if __name__ == '__main__':
     act_n = env.action_space.n
     net = models.NoisyDuelDQN(obs_shape, act_n).to(device)
     print(net)
-    for x in net.parameters():
-        print(x)
+    
+    
     data = preprocessor([env.reset()])
     tgt_net = ptan.agent.TargetNet(net)
 
