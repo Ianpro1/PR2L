@@ -16,10 +16,10 @@ EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 parameters = {
     "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
-    "LEARNING_RATE":5e-4,
+    "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
-    "N_STEPS":4,
-    "TGT_NET_SYNC":300,
+    "N_STEPS":3,
+    "TGT_NET_SYNC":500,
     "BATCH_SIZE":32,
     "REPLAY_SIZE":10000,
     "BETA_START":  0.4,
