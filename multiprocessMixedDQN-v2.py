@@ -16,7 +16,7 @@ EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 parameters = {
     "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
-    "LEARNING_RATE":1e-3,
+    "LEARNING_RATE":5e-4,
     "GAMMA":0.99,
     "N_STEPS":4,
     "TGT_NET_SYNC":300,
@@ -212,7 +212,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
     idx = 0
     running = True
-    buffer = ptan.experience.ExperienceReplayBuffer(None, parameters["REPLAY_SIZE"])
+    buffer = ptan.experience.ExperienceReplayBuffer(None, parameters["REPLAY_SIZE"]) #try a waiting list to wait for network sync
     #buffer = ptan.experience.PrioritizedReplayBuffer(experience_source=None,buffer_size=parameters["REPLAY_SIZE"], alpha=parameters["PRIO_REPLAY_ALPHA"])
     BatchGen = BatchGenerator(buffer=buffer, exp_queue=exp_queue, initial= 2*parameters["BATCH_SIZE"], batch_size=parameters["BATCH_SIZE"])
 
