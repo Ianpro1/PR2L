@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 
 parameters = {
-    "ENV_NAME":"Breakout-v4",
+    "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
@@ -28,9 +28,9 @@ import multiprocessing as mp
 import common.Rendering as Rendering
 
 if __name__ == '__main__':
-    inconn, outconn = mp.Pipe()
+    #inconn, outconn = mp.Pipe()
         
-    class sendimg:
+    '''class sendimg:
         def __init__(self, inconn, frame_skip=2):
             self.inconn = inconn
             self.frame_skip = frame_skip
@@ -40,15 +40,15 @@ if __name__ == '__main__':
             if self.count % self.frame_skip ==0:
                 self.count = 0
                 inconn.send(img)
-            return img
+            return img'''
 
-    p1 = mp.Process(target=Rendering.init_display, args=(outconn, 320, 420))
-    p1.start()
+    #p1 = mp.Process(target=Rendering.init_display, args=(outconn, 320, 420))
+    #p1.start()
     
     def make_env(ENV_NAME, LiveRendering=False):
         env = gym.make(ENV_NAME)
-        if LiveRendering:
-            env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=4))
+        '''if LiveRendering:
+            env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=4))'''
         env = atari_wrappers.AutomateFireAction(env)
         env = atari_wrappers.FireResetEnv(env)
         env = atari_wrappers.MaxAndSkipEnv(env)
@@ -66,7 +66,7 @@ if __name__ == '__main__':
 
     obs_shape = env.observation_space.shape
 
-    net = models.DQN(obs_shape, env.action_space.n).to(device)
+    net = models.NoisyDualDQN(obs_shape, env.action_space.n).to(device)
     print(net)
     tgt_net = ptan.agent.TargetNet(net)
 
@@ -153,7 +153,8 @@ if __name__ == '__main__':
         loss = torch.nn.functional.mse_loss(q_v, q_v_refs)
         loss.backward()
         optimizer.step()
-            
+        
+        print(loss)
         writer.add_scalar("loss", loss, idx)
         
         selector.epsilon = max(parameters['EPSILON_FINAL'], parameters['EPSILON_START'] - idx / parameters['EPSILON_DECAY_LAST_FRAME'])

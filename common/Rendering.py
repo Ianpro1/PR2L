@@ -3,6 +3,83 @@ import numpy as np
 import pygame
 import torch
 import pandas as pd
+import torch.nn as nn
+
+class grads_manager:
+    #should make a simpler function to return distribution values
+    @torch.no_grad()
+    def __init__(self, net, func="rainbow", path="output.csv", scaler="minmax"):
+        assert isinstance(func, str)
+        self.net = net
+        self.column = None
+        self.path = path
+        self.scaler = scaler
+        if func == 'mean':
+            self.func = self.layer_mean
+        elif func == 'min':
+            self.func = self.layer_min
+        elif func == 'max':
+            self.func = self.layer_max
+        elif func == 'rainbow':
+            self.func = self.layer_rainbow
+            self.column = ["max", "mean", "min"]
+        else:
+            raise ValueError(func + " does not exist!")
+    
+    def write_csv(self):
+        names = []
+        grads = []
+        for name, param in self.net.named_parameters():
+            names.append(name)
+            grads.append(self.func(param.grad))
+
+        if self.scaler == "minmax":
+            max_grads = max(grads)
+            min_grads = min(grads)
+            grads = self.minmax(grads)
+            grads = np.append(grads, (max_grads, min_grads))
+            names.extend(["max_grads", "min_grads"])
+
+        if self.column is not None:
+            frame = pd.DataFrame(grads, index=names, columns=self.column)
+        else:
+            frame = pd.DataFrame(grads, index=names)
+
+        self.frame = frame
+        frame.to_csv(self.path)
+
+    def get(self):
+        names = []
+        grads = []
+        for name, param in self.net.named_parameters():
+            names.append(name)
+            grads.append(self.func(param.grad))  
+        if self.scaler == "minmax":
+            grads = self.minmax(grads)
+        return names, grads
+    
+    def minmax(self, x):
+        maxx = max(x)
+        minx = min(x)
+        rangex = maxx - minx
+        scaled = (x-minx)/rangex
+        return scaled
+
+    @staticmethod
+    def layer_mean(layer):
+        return layer.cpu().mean().numpy()
+    @staticmethod
+    def layer_max(layer):
+        return layer.cpu().max().numpy()
+    @staticmethod
+    def layer_min(layer):
+        return layer.cpu().min().numpy()
+    @staticmethod
+    def layer_rainbow(layer):
+        max = layer.cpu().max().numpy()
+        mean = layer.cpu().mean().numpy()
+        min = layer.cpu().min().numpy()
+        return [max, mean, min]
 
 class params_toDataFrame:
     #create an output file or returns a pandas DataFrame on demand which contains labeled parameters of the network

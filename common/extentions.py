@@ -67,7 +67,7 @@ def unpack_batch(batch, obs_shape):
             last_states.append(exp.last_state) 
         else:
             dones.append(True)
-            last_states.append(np.empty(shape=obs_shape)) #might be suboptimal
+            last_states.append(np.ones(shape=obs_shape)) #might be suboptimal ------>terrible implementation, this pushes Nan values into network
    
     return states, actions, rewards, last_states, dones
     

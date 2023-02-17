@@ -70,7 +70,7 @@ if __name__ == '__main__':
     preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
     obs_shape = env.observation_space.shape
     act_n = env.action_space.n
-    net = models.NoisyDuelDQN(obs_shape, act_n).to(device)
+    net = models.NoisyDualDQN(obs_shape, act_n).to(device)
     print(net)
     
     

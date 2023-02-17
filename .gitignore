@@ -3,7 +3,5 @@ Pong-v4
 PongNoFrameskip-v4
 runs
 CartPole-v1
-DataFrames/mainNetwork_params.csv
-DataFrames/parallelNetwork_params.csv
-DataFrames/tgtNetwork_params.csv
+DataFrames
 

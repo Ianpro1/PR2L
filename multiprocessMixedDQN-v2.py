@@ -14,12 +14,12 @@ import torch.multiprocessing as tmp
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
-    "ENV_NAME":"BreakoutNoFrameskip-v4",
+    "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
     "LEARNING_RATE":1e-3,
     "GAMMA":0.99,
     "N_STEPS":4,
-    "TGT_NET_SYNC":500,
+    "TGT_NET_SYNC":300,
     "BATCH_SIZE":32,
     "REPLAY_SIZE":10000,
     "BETA_START":  0.4,
@@ -28,6 +28,7 @@ parameters = {
 }
 
 device = "cuda"
+gamma = parameters['GAMMA']
 beta_frames= parameters["BETA_FRAMES"]
 beta = parameters["BETA_START"]
 preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
@@ -54,7 +55,7 @@ def make_env(ENV_NAME, inconn=None):
         env = gym.make(ENV_NAME)
 
         if inconn is not None: # or if inconn is not None
-            env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=8)) 
+            env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=16)) 
         env = atari_wrappers.AutomateFireAction(env)
         env = atari_wrappers.FireResetEnv(env)
         env = atari_wrappers.MaxAndSkipEnv(env, skip=4)
@@ -73,9 +74,7 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         env2 = make_env(parameters['ENV_NAME'])
         env3 = make_env(parameters['ENV_NAME'])
         env = [env1, env2, env3]
-        
         print(net)
-        
         preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
         selector = ptan.actions.ArgmaxActionSelector()
         agent = ptan.agent.DQNAgent(net, action_selector=selector, device=device, preprocessor=preprocessor)
@@ -94,8 +93,27 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
             for rewards, steps in exp_source.pop_rewards_steps():   
                 exp_queue.put(EpisodeEnded(rewards, steps))
 
+def unpack_batchv2(batch): #this can be removed
+    # returns: states, actions, calculated tgt_q_v => r + tgt_net(last_state)*GAMMA
+    #used for most basic DQN
+    states = []
+    rewards = []
+    actions = []
+    last_states = []
+    not_dones = []
+    for exp in batch:
+        states.append(exp.state)
+        rewards.append(exp.reward)
+        actions.append(exp.action)
+        
+        if exp.last_state is not None:
+            not_dones.append(True)
+            last_states.append(exp.last_state) 
+        else:
+            not_dones.append(False)   
+    return states, actions, rewards, last_states, not_dones
 
-def calc_loss(states, actions, rewards, last_states, dones, tgt_net, net):
+def calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net):
     last_states = preprocessor(last_states).to(device)
     rewards = preprocessor(rewards).to(device)
     states = preprocessor(states).to(device)
@@ -103,15 +121,23 @@ def calc_loss(states, actions, rewards, last_states, dones, tgt_net, net):
     #batch_w_v = torch.tensor(batch_weights).to(device)
 
     with torch.no_grad(): #try to use numpy instead
-        #tgt_q = net(last_states) # bad implementation of double DQN (unpack is returning non-computable values)
+
+        #compute tgt_q values (does not include dones)
         tgt_q = tgt_net.target_model(last_states)
-        tgt_actions = torch.argmax(tgt_q, 1)
-        tgt_actions = tgt_actions.unsqueeze(1)
-        #tgt_qs = tgt_net.target_model(last_states)
-        #tgt_q_v = tgt_qs.gather(1, tgt_actions).squeeze(1)
-        tgt_q_v = tgt_q.gather(1, tgt_actions).squeeze(1)
-        tgt_q_v[dones] = 0.0
-        q_v_refs = rewards + tgt_q_v * parameters['GAMMA']
+
+        #get index of best tgt_q values
+        tgt_actions = torch.argmax(tgt_q, 1).unsqueeze(1)
+
+        #best tgt_q_v gathered
+        tgt_q = tgt_q.gather(1, tgt_actions).squeeze(1)
+
+        #get back dones as 0 values
+        #implementation 1
+        tgt_q_v = torch.zeros_like(rewards) #used rewards to get shape
+        tgt_q_v[not_dones] = tgt_q
+        
+        #bellman step
+        q_v_refs = rewards + tgt_q_v * gamma
 
     optimizer.zero_grad()
     q_v = net(states)
@@ -146,8 +172,8 @@ class BatchGenerator:
             
             if len(self.buffer) < self.initial:
                 continue
-            
             yield self.buffer.sample(self.batch_size*Batch_MUL) #beta=beta
+
 
 if __name__ == '__main__':
 
@@ -166,9 +192,10 @@ if __name__ == '__main__':
     obs_shape, n_actions = get_obs_act_n()
     
     net = models.NoisyDualDQN(obs_shape, n_actions).to(device)
-    
     net.share_memory()
+    
     tgt_net = ptan.agent.TargetNet(net)
+    
     backup = E.ModelBackup(parameters['ENV_NAME'], net=net, notify=True)
     writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)  
     
@@ -192,11 +219,16 @@ if __name__ == '__main__':
     t1 = time.time()
     Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
     Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
-    loss=None
-    while running:
+    
+    solved = False
+    #grads = Rendering.grads_manager(net, func="mean", path='DataFrames/mainNetwork_grads.csv')
+    
+    #batch, batch_idxs, batch_weights = next(iter(BatchGen))
+    for batch in BatchGen:
         idx +=1
-        
-        #beta = min(1.0, beta + idx * (1.0 - beta) / beta_frames)
+
+        #if idx % 500 == 0:
+            #grads.write_csv()
 
         for rewards, steps in BatchGen.pop_rewards_steps():
             t2 = time.time() - t1
@@ -204,19 +236,17 @@ if __name__ == '__main__':
             print("loss %.3f" % (loss))
             writer.add_scalar("rewards", rewards, idx)
             writer.add_scalar("steps", steps, idx)
-            
+
             solved = rewards > 19
-            if solved:
-                print("Solved!")
-                parameters["complete"] = True
-                backup.save(parameters=parameters)
-                running=False
-                continue
-        
-        #batch, batch_idxs, batch_weights = next(iter(BatchGen))
-        batch = next(iter(BatchGen)) #might be better to do a for loop
-        states, actions, rewards, last_states, dones = E.unpack_batch(batch, obs_shape)
-        loss, sample_prios_v = calc_loss(states, actions, rewards, last_states, dones, tgt_net, net)
+
+        if solved:
+            print("Solved!")
+            parameters["complete"] = True
+            backup.save(parameters=parameters)
+            break          
+
+        states, actions, rewards, last_states, not_dones = unpack_batchv2(batch)
+        loss, sample_prios_v = calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net)
         loss.backward()
         optimizer.step()
 

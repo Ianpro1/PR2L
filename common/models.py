@@ -143,6 +143,8 @@ class NoisyFactorizedLinear(nn.Linear):
     return F.linear(input, v, bias)
 
 
+#WARNING: FOR NEWER NETWORKS, MAKE SURE THAT ALL COMPONENTS OF NETWORK CAN BE CAUGHT IN network_reset METHOD IF YOU WANT MULTIPROCESSING
+
 class NoisyDualDQN(nn.Module):
     def __init__(self, input_shape, n_actions):
         #input_shape is shape of observation as (filter, height, width) DO NOT CALL AS BATCH
@@ -152,7 +154,7 @@ class NoisyDualDQN(nn.Module):
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.BatchNorm2d(64),
+            nn.BatchNorm2d(64), 
             nn.ReLU(),
             nn.Conv2d(64,64,kernel_size=3, stride=1),
             nn.BatchNorm2d(64),
@@ -163,12 +165,12 @@ class NoisyDualDQN(nn.Module):
         
         self.value_net = nn.Sequential(
             NoisyLinear(conv_out, 256),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             NoisyLinear(256, 1)
         )
         self.adv_net = nn.Sequential(
             NoisyLinear(conv_out, 256),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             NoisyLinear(256, n_actions)
         )
 
@@ -222,9 +224,37 @@ class A2C(nn.Module):
         return act_v, value
 
 
-
 def network_reset(layer):
     #useful for disapearing parameters in multiprocessing cases where a cuda network is shared across processes
     #example: net.apply(network_reset)
-        if isinstance(layer, (nn.Linear, nn.Conv2d)):
+        if isinstance(layer, (nn.Linear, nn.Conv2d, nn.BatchNorm2d, nn.BatchNorm1d)):
             layer.reset_parameters()
+
+
+class deepprint(nn.Module):
+    def __init__(self, name, func="rainbow", treshold=1000000, n_skip=1):
+        super().__init__()
+        self.name = name
+        if func =="rainbow":
+            self.func = self.rainbow
+        self.tres = treshold
+        self.id = 0
+        self.n_skip = n_skip
+
+    def forward(self, x):
+        self.id +=1
+        with torch.no_grad():
+            if x.mean() > self.tres or x.mean() < -self.tres:
+                print(self.name, self.func(x))
+                raise MemoryError("(deepprint) Weight explosion caught!")
+            elif self.id % self.n_skip ==0:
+                print(self.name, self.func(x))
+        return x
+
+    @staticmethod
+    def zeros(obs):
+        a = obs.any()!=0
+        return a
+    @staticmethod
+    def rainbow(x):
+        return [x.max().item(), x.mean().item(), x.min().item()]
