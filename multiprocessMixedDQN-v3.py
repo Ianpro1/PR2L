@@ -1,7 +1,6 @@
 import gym
 import numpy as np
 import torch
-import ptan
 import common.extentions as E
 import common.models as models
 import common.atari_wrappers as atari_wrappers
@@ -10,34 +9,30 @@ import time
 from collections import namedtuple
 import common.Rendering as Rendering
 import torch.multiprocessing as tmp
+from PR2L import utilities, agents, experience, common_wrappers
+
 
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
-    "ENV_NAME":"BreakoutNoFrameskip-v4",
+    "ENV_NAME":"PongNoFrameskip-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
-    "N_STEPS":3,
-    "TGT_NET_SYNC":200,
-    "BATCH_SIZE":100,
-    "REPLAY_SIZE":10000,
+    "N_STEPS":2,
+    "TGT_NET_SYNC":300,
+    "BATCH_SIZE":32,
+    "REPLAY_SIZE":8000,
     "BETA_START":  0.4,
     'PRIO_REPLAY_ALPHA' : 0.6,
-    'BETA_FRAMES' : 5000
+    'BETA_FRAMES' : 6000
 }
 
 device = "cuda"
 gamma = parameters['GAMMA']
 beta_frames= parameters["BETA_FRAMES"]
 beta = parameters["BETA_START"]
-preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
-
-def get_obs_act_n():
-    env = make_env(parameters['ENV_NAME'])
-    obs_shape = env.observation_space.shape
-    n_actions = env.action_space.n
-    return obs_shape, n_actions
+preprocessor = agents.numpytofloattensor_preprossesing
 
 class sendimg:
     def __init__(self, inconn, frame_skip=2):
@@ -48,78 +43,51 @@ class sendimg:
         self.count +=1
         if self.count % self.frame_skip ==0:
             self.count = 0
+            img = (img.transpose(1,2,0) * 255.).astype(np.uint8)
             self.inconn.send(img)
         return img
 
 def make_env(ENV_NAME, inconn=None):
         env = gym.make(ENV_NAME)
 
-        if inconn is not None: # or if inconn is not None
-            env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=8)) 
-        env = atari_wrappers.AutomateFireAction(env)
-        env = atari_wrappers.FireResetEnv(env)
-        env = atari_wrappers.MaxAndSkipEnv(env, skip=4)
-        env = atari_wrappers.ProcessFrame84(env)
-        env = atari_wrappers.reshapeWrapper(env)
-        env = atari_wrappers.ScaledFloatFrame(env, 255.)
-        env = atari_wrappers.BufferWrapper(env, 3)
-        env = atari_wrappers.oldStepWrapper(env)
-        '''if inconn is not None:
-            env = atari_wrappers.LiveRenderWrapper(env, sendimg(inconn, frame_skip=4))'''
+        '''if inconn is not None: # or if inconn is not None
+            env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=16)) '''
+        env = common_wrappers.WrapAtariEnv(env)
+        if inconn is not None:
+            env = common_wrappers.LiveRenderWrapper(env, sendimg(inconn, frame_skip=8))
         return env
 
 def play_func(parameters, net, exp_queue, device, inconn=None):
 
-        env1 = make_env(parameters['ENV_NAME'],inconn=inconn)
+        env1 = make_env(parameters['ENV_NAME'], inconn=inconn)
         env2 = make_env(parameters['ENV_NAME'])
         env3 = make_env(parameters['ENV_NAME'])
+        
         env = [env1, env2, env3]
         print(net)
-        preprocessor = E.ndarray_preprocessor(E.FloatTensor_preprocessor())
-        selector = ptan.actions.ArgmaxActionSelector()
-        agent = ptan.agent.DQNAgent(net, action_selector=selector, device=device, preprocessor=preprocessor)
-        exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, gamma=parameters.get('GAMMA', 0.99), steps_count=parameters['N_STEPS'])
         
+        agent = agents.BasicAgent(net, device)
+        exp_source = experience.ExperienceSource(env, agent, parameters['N_STEPS'], GAMMA=parameters.get('GAMMA', 0.99))
         time.sleep(1)
         Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")
         idz = 0
         for exp in exp_source:
             idz +=1
-            
             exp_queue.put(exp)
-            
+
             '''if idz % 500 == 0:
                 Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")'''
 
+
             for rewards, steps in exp_source.pop_rewards_steps():   
                 exp_queue.put(EpisodeEnded(rewards, steps))
-
-def unpack_batchv2(batch): #this can be removed
-    # returns: states, actions, calculated tgt_q_v => r + tgt_net(last_state)*GAMMA
-    #used for most basic DQN
-    states = []
-    rewards = []
-    actions = []
-    last_states = []
-    not_dones = []
-    for exp in batch:
-        states.append(exp.state)
-        rewards.append(exp.reward)
-        actions.append(exp.action)
-        
-        if exp.last_state is not None:
-            not_dones.append(True)
-            last_states.append(exp.last_state) 
-        else:
-            not_dones.append(False)   
-    return states, actions, rewards, last_states, not_dones
 
 def calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net):
     last_states = preprocessor(last_states).to(device)
     rewards = preprocessor(rewards).to(device)
     states = preprocessor(states).to(device)
     actions = torch.tensor(actions).to(device)
-    #batch_w_v = torch.tensor(batch_weights).to(device)
+    
 
     with torch.no_grad(): #try to use numpy instead
 
@@ -144,10 +112,8 @@ def calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net):
     q_v = net(states)
     q_v = q_v.gather(1, actions.unsqueeze(1)).squeeze(1)
     losses = (q_v - q_v_refs.detach()).pow(2)
-    #losses = batch_w_v * losses
     loss = losses.mean()
-    sample_prios_v = losses + 1e-5
-    return loss, sample_prios_v
+    return loss
 
 class BatchGenerator:
     def __init__(self, buffer, exp_queue, initial, batch_size):
@@ -179,23 +145,25 @@ class BatchGenerator:
 if __name__ == '__main__':
 
     tmp.set_start_method("spawn")
-    inconn, outconn = tmp.Pipe()
+    
 
     #init display
-    p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 320, 420, (210, 160)))
+    inconn, outconn = tmp.Pipe()
+    p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 336, 336, (84, 84))) #args=(outconn, 320, 420, (210, 160))
     p1.start()
-
+    
 
     #multiprocessing for training
     
     Batch_MUL = 4
     
-    obs_shape, n_actions = get_obs_act_n()
+    obs_shape = (3, 84, 84)
+    n_actions = 4
     
     net = models.NoisyDualDQN(obs_shape, n_actions).to(device)
     net.share_memory()
     
-    tgt_net = ptan.agent.TargetNet(net)
+    tgt_net = agents.TargetNet(net)
     
     backup = E.ModelBackup(parameters['ENV_NAME'], net=net, notify=True)
     writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)  
@@ -213,8 +181,8 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
     idx = 0
     running = True
-    buffer = ptan.experience.ExperienceReplayBuffer(None, parameters["REPLAY_SIZE"]) #try a waiting list to wait for network sync
-    #buffer = ptan.experience.PrioritizedReplayBuffer(experience_source=None,buffer_size=parameters["REPLAY_SIZE"], alpha=parameters["PRIO_REPLAY_ALPHA"])
+    buffer = experience.EpisodeReplayBuffer(None, parameters["REPLAY_SIZE"]) #try a waiting list to wait for network sync
+    
     BatchGen = BatchGenerator(buffer=buffer, exp_queue=exp_queue, initial= 2*parameters["BATCH_SIZE"], batch_size=parameters["BATCH_SIZE"])
 
     t1 = time.time()
@@ -224,7 +192,7 @@ if __name__ == '__main__':
     solved = False
     #grads = Rendering.grads_manager(net, func="mean", path='DataFrames/mainNetwork_grads.csv')
     
-    #batch, batch_idxs, batch_weights = next(iter(BatchGen))
+    
     for batch in BatchGen:
         idx +=1
 
@@ -246,12 +214,12 @@ if __name__ == '__main__':
             backup.save(parameters=parameters)
             break          
 
-        states, actions, rewards, last_states, not_dones = unpack_batchv2(batch)
-        loss, sample_prios_v = calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net)
+        states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
+        loss = calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net)
         loss.backward()
         optimizer.step()
 
-        #buffer.update_priorities(batch_idxs,sample_prios_v.data.cpu().numpy())
+        #print("hello")
         writer.add_scalar("loss", loss, idx)  
 
         if idx %5000 == 0:

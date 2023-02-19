@@ -6,10 +6,13 @@ import numpy as np
 #Experience tuple not implemented yet
 Experience = namedtuple("Experience", ("state", "action", "reward", "done"))
 
-NextExperience = namedtuple("Experience", ("state", "action", "reward", "done", "next"))
+NextExperience = namedtuple("NextExperience", ("state", "action", "reward", "done", "next"))
 
+
+
+#pop reward needs fix
 class ExperienceSource:
-    def __init__(self, env, agent, n_steps, GAMMA=0.99):
+    def __init__(self, env, agent, n_steps=2, GAMMA=0.99):
         assert isinstance(agent, Agent)
         assert isinstance(env, (gym.Env, list, tuple))
         if isinstance(env, (list, tuple)):
@@ -33,45 +36,46 @@ class ExperienceSource:
         _rewards = []
         _actions = []
         _dones = []
-        _nextstates = []
+        #_nextstates = []
         cur_obs = []
         for e in self.env:
             _states.append(deque(maxlen=self.n_steps))
             _rewards.append(deque(maxlen=self.n_steps))
             _actions.append(deque(maxlen=self.n_steps))
             _dones.append(deque(maxlen=self.n_steps))
-            _nextstates.append(deque(maxlen=self.n_steps))
+            #_nextstates.append(deque(maxlen=self.n_steps))
             obs, _ = e.reset()
             cur_obs.append(obs)
 
         while True:   
             actions = self.agent(cur_obs)
-    
+            
             for i, env in enumerate(self.env):
                 nextobs, reward, done, info, _ = env.step(actions[i])
 
-                _states[i].append(cur_obs[i])
                 _actions[i].append(actions[i])
                 _rewards[i].append(reward)
                 _dones[i].append(done)
                 self.__sum_rewards_steps(reward, done, i)
                 if done:
-                    _nextstates[i].append(None)
+                    _states[i].append(None)
+                    #_nextstates[i].append(None) #does not work need to return next states n_steps from now
                     #decay all
                     _rewards[i] = self.decay_all_rewards(_rewards[i], self.gamma)
                     for _ in range(len(_dones[i])):
-                        exp = NextExperience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), _dones[i].popleft(), _nextstates[i].popleft())
+                        exp = NextExperience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), _dones[i].popleft(), _states[i][-1])
                         yield exp
                     self.n_eps_done += 1
                     obs, _ = self.env[i].reset()
                     cur_obs[i] = obs
                     continue
+                _states[i].append(cur_obs[i])
                 cur_obs[i] = nextobs
-                _nextstates[i].append(nextobs)
+                #_nextstates[i].append(nextobs)
                 if len(_dones[i]) == self.n_steps:
                     #decay for only the oldest
                     _rewards[i] = self.decay_oldest_rewards(_rewards[i], self.gamma)
-                    exp = NextExperience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), _dones[i].popleft(), _nextstates[i].popleft())
+                    exp = NextExperience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), _dones[i].popleft(), _states[i][-1])
                     yield exp
             
     def decay_all_rewards(self, rewards, gamma):
@@ -108,10 +112,12 @@ class ExperienceSource:
             self.tot_steps.append(self.tot_step[env_id])
             self.tot_step[env_id] = 0
 
+
     def pop_rewards_steps(self):
         res = list(zip(self.tot_rewards, self.tot_steps))
         if res:
-            self.total_rewards, self.total_steps = [], []
+            self.tot_rewards.clear()
+            self.tot_steps.clear()
         return res  
 
 
