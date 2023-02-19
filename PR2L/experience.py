@@ -1,13 +1,13 @@
 import gym
 from collections import namedtuple, deque
 from .agents import Agent
-
+import numpy as np
 
 #Experience tuple not implemented yet
 Experience = namedtuple("Experience", ("state", "action", "reward", "done"))
 
 NextExperience = namedtuple("Experience", ("state", "action", "reward", "done", "next"))
-          
+
 class ExperienceSource:
     def __init__(self, env, agent, n_steps, GAMMA=0.99):
         assert isinstance(agent, Agent)
@@ -26,6 +26,7 @@ class ExperienceSource:
         self.tot_steps = []
         self.n_steps = n_steps
         self.gamma = GAMMA
+        self.n_eps_done = 0
 
     def __iter__(self):
         _states = []
@@ -43,9 +44,9 @@ class ExperienceSource:
             obs, _ = e.reset()
             cur_obs.append(obs)
 
-        while True:
+        while True:   
             actions = self.agent(cur_obs)
-
+    
             for i, env in enumerate(self.env):
                 nextobs, reward, done, info, _ = env.step(actions[i])
 
@@ -61,6 +62,7 @@ class ExperienceSource:
                     for _ in range(len(_dones[i])):
                         exp = NextExperience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), _dones[i].popleft(), _nextstates[i].popleft())
                         yield exp
+                    self.n_eps_done += 1
                     obs, _ = self.env[i].reset()
                     cur_obs[i] = obs
                     continue
@@ -71,7 +73,7 @@ class ExperienceSource:
                     _rewards[i] = self.decay_oldest_rewards(_rewards[i], self.gamma)
                     exp = NextExperience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), _dones[i].popleft(), _nextstates[i].popleft())
                     yield exp
-    
+            
     def decay_all_rewards(self, rewards, gamma):
         for i in range(len(rewards)):
             if i ==0:
@@ -115,4 +117,83 @@ class ExperienceSource:
 
 
 class StepReplayBuffer:
-    pass
+    def __init__(self, exp_source, replay_size):
+        assert isinstance(replay_size, int)
+        self.capacity = replay_size
+        if exp_source is not None:
+            self.exp_source_iter = iter(exp_source)
+        else:
+            self.exp_source_iter = None
+
+        self.buffer = []
+        self.pos = 0
+
+    def _add(self, exp):
+    #should only add one sample per call
+        if len(self.buffer) < self.capacity:
+            self.buffer.append(exp)
+        else:
+            self.buffer[self.pos] = exp
+
+        self.pos = (self.pos + 1) % self.capacity
+    
+    def populate(self, n_samples):
+        for _ in range(n_samples):
+            entry = next(self.experience_source_iter)
+            self._add(entry)
+
+    def sample(self, n_samples):
+        if len(self.buffer) <= n_samples:
+            return self.buffer
+        # Warning: replace=False makes random.choice O(n)
+        keys = np.random.choice(len(self.buffer), n_samples, replace=True)
+        return [self.buffer[key] for key in keys]
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def __iter__(self):
+        return iter(self.buffer)
+
+
+
+class EpisodeReplayBuffer:
+    def __init__(self, exp_source, replay_size):
+        assert isinstance(replay_size, int)
+        self.capacity = replay_size
+        if exp_source is not None:
+            self.exp_source = exp_source
+        else:
+            self.exp_source_iter = None
+
+        self.buffer = []
+        self.pos = 0
+
+    def _add(self, exp):
+    #should only add one sample per call
+        if len(self.buffer) < self.capacity:
+            self.buffer.append(exp)
+        else:
+            self.buffer[self.pos] = exp
+
+        self.pos = (self.pos + 1) % self.capacity
+    
+    def populate(self, n_episodes):
+        for exp in self.exp_source:
+            self._add(exp)
+            if self.exp_source.n_eps_done >= n_episodes:
+                self.exp_source.n_eps_done = 0
+                break
+
+    def sample(self, n_samples):
+        if len(self.buffer) <= n_samples:
+            return self.buffer
+        # Warning: replace=False makes random.choice O(n)
+        keys = np.random.choice(len(self.buffer), n_samples, replace=True)
+        return [self.buffer[key] for key in keys]
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def __iter__(self):
+        return iter(self.buffer)
