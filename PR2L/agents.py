@@ -11,20 +11,34 @@ class ArgmaxSelector(ActionSelector):
         super().__init__()
 
     def __call__(self,x):
-        return x.argmax(dim=1)
+        return np.argmax(x,axis=1)
+
+class EpsilonGreedySelector(ActionSelector):
+    def __init__(self, epsilon, selector=None):
+        self.epsilon = epsilon
+        self.selector = selector if selector is not None else ArgmaxSelector()
+
+    def __call__(self, x):
+        batch_size, n_actions = x.shape
+        actions = self.selector(x)
+        mask = np.random.random(size=batch_size) < self.epsilon
+        rand_action = np.random.choice(n_actions, sum(mask))
+        actions[mask] = rand_action
+        return actions
+
 
 class Agent:
     def __call__(self):
         raise NotImplementedError
 
 def numpytotensor_preprossesing(x):
-    return torch.tensor(np.array(x))
+    return torch.tensor(np.array(x, copy=False))
 
-def numpytofloattensor_preprossesing(x):
-    return torch.FloatTensor(np.array(x))
+def numpytoFloatTensor_preprossesing(x):
+    return torch.FloatTensor(np.array(x, copy=False))
 
 class BasicAgent(Agent):
-    def __init__(self, net, device, Selector= ArgmaxSelector(), preprocessing=numpytotensor_preprossesing):
+    def __init__(self, net, device="cpu", Selector= ArgmaxSelector(), preprocessing=numpytoFloatTensor_preprossesing):
         super().__init__()
         assert isinstance(Selector, ActionSelector)
         self.selector = Selector
@@ -35,10 +49,9 @@ class BasicAgent(Agent):
     @torch.no_grad()
     def __call__(self, x):
         x = self.preprocessing(x)
-        
         values = self.net(x.to(self.device))
-        actions = self.selector(values)
-        return actions.cpu().numpy()
+        actions = self.selector(values.cpu().numpy())
+        return actions
 
 
 class TargetNet:

@@ -10,7 +10,6 @@ NextExperience = namedtuple("NextExperience", ("state", "action", "reward", "don
 
 
 
-#pop reward needs fix
 class ExperienceSource:
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99):
         assert isinstance(agent, Agent)
@@ -55,21 +54,25 @@ class ExperienceSource:
 
                 _actions[i].append(actions[i])
                 _rewards[i].append(reward)
-                _dones[i].append(done)
+                _states[i].append(cur_obs[i])
                 self.__sum_rewards_steps(reward, done, i)
                 if done:
-                    _states[i].append(None)
+                    #_states[i].append(None)
                     #_nextstates[i].append(None) #does not work need to return next states n_steps from now
                     #decay all
                     _rewards[i] = self.decay_all_rewards(_rewards[i], self.gamma)
-                    for _ in range(len(_dones[i])):
-                        exp = NextExperience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), _dones[i].popleft(), _states[i][-1])
+                    
+                    for _ in range(len(_rewards[i])): #used to get proper length
+                        #_next = _states[i][-1]
+                        exp = NextExperience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), True, None)
                         yield exp
+                    _dones[i].clear()
                     self.n_eps_done += 1
                     obs, _ = self.env[i].reset()
                     cur_obs[i] = obs
                     continue
-                _states[i].append(cur_obs[i])
+
+                _dones[i].append(done)
                 cur_obs[i] = nextobs
                 #_nextstates[i].append(nextobs)
                 if len(_dones[i]) == self.n_steps:

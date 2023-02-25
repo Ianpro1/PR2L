@@ -110,7 +110,7 @@ class ModelBackup:
 
     #upon calling save() parameters should be either None or dictionnary containing configs
     def save(self, parameters=None):
-        assert isinstance(parameters, (dict, None))
+        assert isinstance(parameters, (dict, type(None)))
         if self.Temp_disable:
             return None
         name = "modelsave%d_"%self.id + self.date + ".pt"

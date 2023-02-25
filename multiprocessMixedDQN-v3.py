@@ -10,8 +10,8 @@ from collections import namedtuple
 import common.Rendering as Rendering
 import torch.multiprocessing as tmp
 from PR2L import utilities, agents, experience, common_wrappers
-
-
+import common.performance as performance
+from gym.wrappers.atari_preprocessing import AtariPreprocessing
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
@@ -19,7 +19,7 @@ parameters = {
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
-    "N_STEPS":2,
+    "N_STEPS":4,
     "TGT_NET_SYNC":300,
     "BATCH_SIZE":32,
     "REPLAY_SIZE":8000,
@@ -32,7 +32,7 @@ device = "cuda"
 gamma = parameters['GAMMA']
 beta_frames= parameters["BETA_FRAMES"]
 beta = parameters["BETA_START"]
-preprocessor = agents.numpytofloattensor_preprossesing
+preprocessor = agents.numpytoFloatTensor_preprossesing
 
 class sendimg:
     def __init__(self, inconn, frame_skip=2):
@@ -47,14 +47,22 @@ class sendimg:
             self.inconn.send(img)
         return img
 
+
+class SingleChannelWrapper(gym.ObservationWrapper):
+    def observation(self, observation):
+        return np.array([observation])
+
 def make_env(ENV_NAME, inconn=None):
         env = gym.make(ENV_NAME)
 
         '''if inconn is not None: # or if inconn is not None
             env = atari_wrappers.functionalObservationWrapper(env, sendimg(inconn, frame_skip=16)) '''
-        env = common_wrappers.WrapAtariEnv(env)
+        #env = common_wrappers.WrapAtariEnv(env)
+        env = AtariPreprocessing(env)
+        env = SingleChannelWrapper(env)
         if inconn is not None:
             env = common_wrappers.LiveRenderWrapper(env, sendimg(inconn, frame_skip=8))
+
         return env
 
 def play_func(parameters, net, exp_queue, device, inconn=None):
@@ -65,41 +73,49 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         
         env = [env1, env2, env3]
         print(net)
-        
-        agent = agents.BasicAgent(net, device)
+        GAMMA = 1.0
+        selector = agents.EpsilonGreedySelector(GAMMA)
+        agent = agents.BasicAgent(net, device, selector)
         exp_source = experience.ExperienceSource(env, agent, parameters['N_STEPS'], GAMMA=parameters.get('GAMMA', 0.99))
         time.sleep(1)
         Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")
         idz = 0
         for exp in exp_source:
-            idz +=1
+            
             exp_queue.put(exp)
-
+            
             '''if idz % 500 == 0:
                 Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")'''
 
 
-            for rewards, steps in exp_source.pop_rewards_steps():   
+            for rewards, steps in exp_source.pop_rewards_steps():
+                idz +=1
+                GAMMA = max(1.0 - idz/1000, 0.02)
+                selector.epsilon = GAMMA
+                print(idz)
                 exp_queue.put(EpisodeEnded(rewards, steps))
+                print("epsilon %.2f" % agent.selector.epsilon)
 
 def calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net):
     last_states = preprocessor(last_states).to(device)
     rewards = preprocessor(rewards).to(device)
     states = preprocessor(states).to(device)
     actions = torch.tensor(actions).to(device)
-    
+
 
     with torch.no_grad(): #try to use numpy instead
 
         #compute tgt_q values (does not include dones)
         tgt_q = tgt_net.target_model(last_states)
-
-        #get index of best tgt_q values
+        
+        '''#get index of best tgt_q values
         tgt_actions = torch.argmax(tgt_q, 1).unsqueeze(1)
-
+        
         #best tgt_q_v gathered
-        tgt_q = tgt_q.gather(1, tgt_actions).squeeze(1)
+        tgt_q = tgt_q.gather(1, tgt_actions).squeeze(1)'''
 
+        tgt_q = tgt_q.max(dim=1)[0]
+        
         #get back dones as 0 values
         #implementation 1
         tgt_q_v = torch.zeros_like(rewards) #used rewards to get shape
@@ -152,15 +168,15 @@ if __name__ == '__main__':
     p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 336, 336, (84, 84))) #args=(outconn, 320, 420, (210, 160))
     p1.start()
     
-
+    
     #multiprocessing for training
     
     Batch_MUL = 4
     
-    obs_shape = (3, 84, 84)
+    obs_shape = (1, 84, 84)
     n_actions = 4
     
-    net = models.NoisyDualDQN(obs_shape, n_actions).to(device)
+    net = models.DualDQN(obs_shape, n_actions).to(device)
     net.share_memory()
     
     tgt_net = agents.TargetNet(net)
@@ -232,3 +248,5 @@ if __name__ == '__main__':
     
         if idx % 40000 == 0:
             backup.save(parameters=parameters)
+
+

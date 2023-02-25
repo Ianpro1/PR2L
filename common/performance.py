@@ -1,42 +1,43 @@
 import time
-import math
 
-class timer:
-    
-    def __init__(self):
-        self.s = None
-
-    def start(self):
-        self.s=time.time()
-    
-    def stop(self):
-        if self.s == None:
-            print("timer hasn't started yet...")
-            return 0
-        t = time.time() - self.s
-        print("time elapsed: %.3f" % t)
-        raise TimeoutError
-
-#unstable (risk of dividing by 0 error)
-class calc_FPS:
-    def __init__(self, treshold=10):
-        self.delta_frames = 0
-        self.last = 0
-        self.t1 = 10
-        self.t2 = None
+class FPScounter:
+    #should not use both functions simultaneously
+    #Note: reset function is never necessary when using only one function
+    def __init__(self, treshold=1000):
         self.treshold = treshold
+        self.count = 0
+        self.t1 = None
+    def step(self):
+        if self.count < 1:
+            self.t1 = time.time()
+        self.count += 1
+        if self.count > self.treshold:
+            tf = time.time() - self.t1
+            if tf > 0:
+                fps = self.count / tf
+                self.count = 0
+                print(fps)
+            else:
+                print("Treshold too low, consider increasing it.")
+   
+    def __call__(self, frame):
+        if self.count == 0:
+            self.t1 = time.time()
+            self.count = 1
+        
+        score = frame/self.count
+        if score > self.treshold:
+            t2 = time.time()
+            tf = t2 - self.t1
+            if tf != 0:
+                fps = score / tf
+                self.count += 1
+                self.t1 = t2
+                print(fps)
+            else:
+                print("Treshold too low, consider increasing it.")
     
-    def __call__(self, frames):
-            self.delta_frames = frames - self.last
-            self.t2 = time.time()
-            elapsed = self.t2 - self.t1
-            FPS = self.delta_frames / elapsed
-
-            if frames % self.treshold == 0:
-                self.last = frames
-                self.t1 = self.t2
-            FPS = math.ceil(FPS)
-            return FPS
-
-    
+    def reset(self):
+        self.count = 0
+        self.t1 = None
 

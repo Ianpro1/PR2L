@@ -139,16 +139,29 @@ def init_display(conn, width, height, frame_shape):
     pygame.init()
     screen = pygame.display.set_mode((width, height))
     while True:
-        #print("receiving...")
+        
         frame = conn.recv()
         
-        #print(frame.shape)
         if frame is None:
             break
+        
+        channel_id = np.argmin(frame.shape)
+        
+        channel_num = np.min(frame.shape)
+
+        frame = np.moveaxis(frame, channel_id, 2)
         screen.fill((255, 255, 255))
         frame = np.array(frame, dtype=np.float32).transpose(1,0,2)
         frame = np.repeat(frame, height // frame_shape[0], axis=0)
         frame = np.repeat(frame, width // frame_shape[1], axis=1)
+
+        
+        if channel_num < 3:
+            frame = frame[:, :, :1]
+            frame = np.repeat(frame, 3, axis=2)
+        elif channel_num > 3:
+            frame = frame[:, :, :3]
+        
         frame = (frame).astype(np.uint8)
         
         pygame.surfarray.blit_array(screen, frame)

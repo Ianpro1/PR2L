@@ -30,6 +30,7 @@ class AutomateFireAction(gym.Wrapper):
     def __init__(self, env=None, penalize=0.0):
         super().__init__(env)
         assert env.unwrapped.get_action_meanings()[1] == 'FIRE'
+        #print(env.unwrapped.get_action_meanings())
         self.lives = None
         self.last = 0.0
         self.penalize = penalize
@@ -76,6 +77,7 @@ class MaxAndSkipFireReset(gym.Wrapper):
         self.env.reset()
         obs, _, _, _, extra = self.env.step(1)
         self._obs_buffer.append(obs)
+
         return obs, extra
 
 class BufferWrapper(gym.ObservationWrapper):
@@ -85,9 +87,16 @@ class BufferWrapper(gym.ObservationWrapper):
         self.dtype = dtype
         self.n_steps = n_steps
 
+        #bad implementation
+        self.observation_space = gym.spaces.Box(low=0., high=1., shape=(n_steps, 84, 84))
+
     def reset(self):
         obs, info = self.env.reset()
-        self.buffer = np.array([obs]*self.n_steps)
+        self.buffer = []
+        for _ in range(self.n_steps):
+            obs, _, _, _, _ = self.env.step(0)
+            self.buffer.append(obs)
+        self.buffer = np.array(self.buffer)
         return self.buffer, info
 
     def observation(self, observation):
@@ -95,12 +104,26 @@ class BufferWrapper(gym.ObservationWrapper):
         self.buffer[-1] = observation
         return self.buffer
 
+class ClipReward(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+
+    def step(self, action):
+        obs, reward, done, info, extra = self.env.step(action)
+        if done:
+            reward = -1
+        return obs, reward, done, info, extra
+    def reset(self):
+        obs = self.env.reset()
+        return obs
+
 
 def WrapAtariEnv(env):
     env = AutomateFireAction(env)
     env = MaxAndSkipFireReset(env)
     env = process84Wrapper(env)
     env = BufferWrapper(env, n_steps=3)
+    #env = ClipReward(env)
     return env
 
 
