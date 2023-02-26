@@ -2,7 +2,7 @@ import gym
 import numpy as np
 import cv2
 from collections import deque
-
+import math
 class process84Wrapper(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -142,3 +142,45 @@ class LiveRenderWrapper(gym.Wrapper):
         obs = self.env.reset()
         self.F(obs[0])
         return obs
+
+
+class RGBtoFLOAT(gym.ObservationWrapper):
+    def __init__(self, env, scaling_factor=255.):
+        super().__init__(env)
+        self.scaling_factor = scaling_factor
+    def observation(self, observation):
+        return observation / self.scaling_factor
+
+class BetaSumBufferWrapper(gym.Wrapper):
+    #make sure that image is scaled between 1 and -1 or 0 and 1
+    def __init__(self, env, n_channel=5, Beta=0.5):
+        super().__init__(env)
+        self.buffer = []
+        self.n_channel = n_channel
+        self.beta = Beta
+        self.factor = 1. * self.beta**(self.n_channel-1)
+        for i in reversed(range(n_channel - 1)):
+            self.factor += 1 * (self.beta**i)
+
+    def __sum_img(self):
+        self.buffer[-1] *= self.beta**(self.n_channel-1)
+        for i in reversed(range(len(self.buffer) - 1)):
+            self.buffer[-1] += self.buffer[i] * (self.beta**i)
+        return (self.buffer[-1] / self.factor)
+
+    def reset(self):
+        obs, _ = self.env.reset()
+        self.buffer = np.array([obs]*self.n_channel, dtype=np.float32)
+        return self.__sum_img(), _
+    
+    def step(self, action):
+        obs, rew, done, _, _ = self.env.step(action)
+        self.__push(obs)
+        return self.__sum_img(), rew, done, _, _
+        
+    def __push(self, new_obs):
+        self.buffer[1:] = self.buffer[:-1]
+        self.buffer[0] = new_obs
+
+
+

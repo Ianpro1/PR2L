@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import numpy as np
 import copy
 
@@ -13,8 +14,19 @@ class ArgmaxSelector(ActionSelector):
     def __call__(self,x):
         return np.argmax(x,axis=1)
 
+class ProbabilitySelector(ActionSelector):
+    def __init__(self):
+        super().__init__()
+    
+    def __call__(self, x):
+        actions = []
+        for probs in x:
+            actions.append(np.random.choice(len(probs), p=probs))
+        return np.array(actions)
+
 class EpsilonGreedySelector(ActionSelector):
     def __init__(self, epsilon, selector=None):
+        super().__init__()
         self.epsilon = epsilon
         self.selector = selector if selector is not None else ArgmaxSelector()
 
@@ -27,32 +39,11 @@ class EpsilonGreedySelector(ActionSelector):
         return actions
 
 
-class Agent:
-    def __call__(self):
-        raise NotImplementedError
-
 def numpytotensor_preprossesing(x):
     return torch.tensor(np.array(x, copy=False))
 
 def numpytoFloatTensor_preprossesing(x):
     return torch.FloatTensor(np.array(x, copy=False))
-
-class BasicAgent(Agent):
-    def __init__(self, net, device="cpu", Selector= ArgmaxSelector(), preprocessing=numpytoFloatTensor_preprossesing):
-        super().__init__()
-        assert isinstance(Selector, ActionSelector)
-        self.selector = Selector
-        self.net = net
-        self.device = device
-        self.preprocessing = preprocessing
-
-    @torch.no_grad()
-    def __call__(self, x):
-        x = self.preprocessing(x)
-        values = self.net(x.to(self.device))
-        actions = self.selector(values.cpu().numpy())
-        return actions
-
 
 class TargetNet:
     """
@@ -77,3 +68,42 @@ class TargetNet:
         for k, v in state.items():
             tgt_state[k] = tgt_state[k] * alpha + (1 - alpha) * v
         self.target_model.load_state_dict(tgt_state)
+
+
+class Agent:
+    def __call__(self):
+        raise NotImplementedError
+    
+
+class BasicAgent(Agent):
+    def __init__(self, net, device="cpu", Selector= ArgmaxSelector(), preprocessing=numpytoFloatTensor_preprossesing):
+        super().__init__()
+        assert isinstance(Selector, ActionSelector)
+        self.selector = Selector
+        self.net = net
+        self.device = device
+        self.preprocessing = preprocessing
+
+    @torch.no_grad()
+    def __call__(self, x):
+        x = self.preprocessing(x)
+        values = self.net(x.to(self.device))
+        actions = self.selector(values.cpu().numpy())
+        return actions
+
+class PolicyAgent(Agent):
+    def __init__(self, net, device="cpu", Selector= ArgmaxSelector(), preprocessing=numpytoFloatTensor_preprossesing):
+        super().__init__()
+        assert isinstance(Selector, ActionSelector)
+        self.selector = Selector
+        self.net = net
+        self.device = device
+        self.preprocessing = preprocessing
+
+    @torch.no_grad()
+    def __call__(self, x):
+        x = self.preprocessing(x)
+        act_v, _ = self.net(x.to(self.device))
+        act_v = F.softmax(act_v, dim=1)
+        actions = self.selector(act_v.cpu().numpy())
+        return actions

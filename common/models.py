@@ -44,7 +44,6 @@ class DQN(nn.Module):
     def forward(self, x):
         convx = self.conv(x)
         convx = convx.view(convx.shape[0], -1)
-        #print(conv_out.shape)  
         return self.fc(convx)
 
 
@@ -218,11 +217,38 @@ class A2C(nn.Module):
 
     def forward(self, x):
         conv_out = self.conv(x)
-        convx = convx.view(convx.shape[0], -1)
-        act_v = self.policy(conv_out)
-        value = self.value(conv_out)
+        convx = conv_out.view(conv_out.shape[0], -1)
+        act_v = self.policy(convx)
+        value = self.value(convx)
         return act_v, value
 
+class LinearA2C(nn.Module):
+    def __init__(self, input_shape, n_actions):
+        super().__init__()
+        self.lin = nn.Sequential(
+            nn.Linear(input_shape[0], 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+        )
+
+        self.value = nn.Sequential(
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, 1)
+        )
+        self.policy = nn.Sequential(
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, n_actions)
+        )
+    
+    def forward(self, x):
+        x = self.lin(x)
+        act_v = self.policy(x)
+        value = self.value(x)
+        return act_v, value
+    
 
 def network_reset(layer):
     #useful for disapearing parameters in multiprocessing cases where a cuda network is shared across processes
@@ -258,3 +284,5 @@ class deepprint(nn.Module):
     @staticmethod
     def rainbow(x):
         return [x.max().item(), x.mean().item(), x.min().item()]
+    
+

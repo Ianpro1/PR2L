@@ -146,7 +146,6 @@ def init_display(conn, width, height, frame_shape):
             break
         
         channel_id = np.argmin(frame.shape)
-        
         channel_num = np.min(frame.shape)
 
         frame = np.moveaxis(frame, channel_id, 2)
@@ -163,7 +162,6 @@ def init_display(conn, width, height, frame_shape):
             frame = frame[:, :, :3]
         
         frame = (frame).astype(np.uint8)
-        
         pygame.surfarray.blit_array(screen, frame)
         pygame.display.update()
         for event in pygame.event.get():

@@ -99,7 +99,7 @@ class ModelBackup:
         self.dateroot = str(datetime.datetime.now().date())
         self.date = datetime.datetime.now().strftime("(%H-%M)")
         
-        self.path = os.path.join(root, self.dateroot)
+        self.path = os.path.join("model_saves/" + root, self.dateroot)
         if os.path.isdir(self.path) ==False:
             os.makedirs(self.path)
         self.Temp_disable = Temp_disable

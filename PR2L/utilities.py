@@ -1,7 +1,7 @@
 
 
-
 def unpack_batch(batch):
+    #Note: the unpack function returns a reduce size last_state list (does not include terminated states)
     states = []
     rewards = []
     actions = []
