@@ -66,7 +66,7 @@ if __name__ == "__main__":
     selector = agents.ProbabilitySelector()
     selector = agents.EpsilonGreedySelector(EPSILON_START, selector)
     agent = agents.PolicyAgent(net, device, selector)
-    exp_source = experience.ExperienceSource(env, agent, N_STEPS)
+    exp_source = experience.ExperienceSourceV2(env, agent, N_STEPS)
     preprocessor = agents.numpytoFloatTensor_preprossesing
     obs,_ = env.reset()
 

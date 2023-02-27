@@ -26,32 +26,6 @@ class process84Wrapper(gym.ObservationWrapper):
         x_t = (x_t - 70.) / 78.
         return x_t
 
-class AutomateFireAction(gym.Wrapper):
-    def __init__(self, env=None, penalize=0.0):
-        super().__init__(env)
-        assert env.unwrapped.get_action_meanings()[1] == 'FIRE'
-        #print(env.unwrapped.get_action_meanings())
-        self.lives = None
-        self.last = 0.0
-        self.penalize = penalize
-    def reset(self):
-        obs, lives = self.env.reset()
-        self.lives = lives["lives"]
-        return obs, lives
-
-    def step(self, action):
-        obs, r, done, info, lives = self.env.step(action)
-        self.lives = lives["lives"]
-        if self.last > self.lives:
-            self.last = self.lives
-            obs, r, done, info, lives = self.env.step(1)
-            if self.penalize:
-                return obs, r - self.penalize, done, info, lives
-            else:
-                return obs, r, done, info, lives
-        self.last = self.lives
-        return obs, r, done, info, lives
-
 class MaxAndSkipFireReset(gym.Wrapper):
     def __init__(self, env, frameskip=4):
         super().__init__(env)
@@ -117,6 +91,32 @@ class ClipReward(gym.Wrapper):
         obs = self.env.reset()
         return obs
 
+class AutomateFireAction(gym.Wrapper):
+    def __init__(self, env=None, penalize=0.0):
+        super().__init__(env)
+        assert env.unwrapped.get_action_meanings()[1] == 'FIRE'
+        self.lives = None
+        self.last = 0.0
+        self.penalize = penalize
+
+    def reset(self):
+        obs, info = self.env.reset()
+        self.lives = info["lives"]
+        return obs, info
+
+    def step(self, action):
+        obs, r, done, _, info = self.env.step(action)
+        self.lives = info["lives"]
+        if self.last > self.lives:
+            self.last = self.lives
+            obs, r, done, _, info = self.env.step(1)
+            
+            if self.penalize:
+                return obs, r - self.penalize, done, _, info
+            else:
+                return obs, r, done, _, info
+        self.last = self.lives
+        return obs, r, done, _, info
 
 def WrapAtariEnv(env):
     env = AutomateFireAction(env)
@@ -183,4 +183,26 @@ class BetaSumBufferWrapper(gym.Wrapper):
         self.buffer[0] = new_obs
 
 
+class PenalizedLossWrapper(gym.Wrapper):
+    def __init__(self, env, penality=-1.):
+        super().__init__(env)
+        self.LossWrapperlives = 0.0
+        self.lastlwl = 0.0
+        self.penality = penality
+    
+    def step(self, action):
+        obs, rew, done, trunc, info = self.env.step(action)
 
+        if info['lives'] < self.lastlwl:
+            self.lastlwl = info['lives']
+            obs, rew, done, trunc, info = self.env.step(1)
+            rew += self.penality
+        
+        return obs, rew, done, trunc, info
+    
+    def reset(self):
+        obs, info = self.env.reset()
+        obs, rew, done, trunc, info = self.env.step(1)
+        self.lastlwl = info["lives"]
+
+        return obs, info

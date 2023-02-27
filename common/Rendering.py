@@ -133,7 +133,6 @@ class params_toDataFrame:
         return self.frame
 
 
-
 def init_display(conn, width, height, frame_shape):
     #creates a pygame instance of rgb_array upon receive from a Pipe() (used for live rendering of agent)
     pygame.init()
@@ -208,6 +207,30 @@ def init_bar(data_shape, height, bar_width, conn, pool=1):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
-               
+     
+class HighLevelSendimg:
+    def __init__(self, inconn, frame_skip=2):
+        self.inconn = inconn
+        self.frame_skip = frame_skip
+        self.count = 0
+    def __call__(self, img):
+        self.count +=1
+        if self.count % self.frame_skip ==0:
+            self.count = 0
+            img = (img.transpose(1,2,0) * 255.).astype(np.uint8)
+            self.inconn.send(img)
+        return img
 
+class LowLevelSendimg:
+    def __init__(self, inconn, frame_skip=2):
+        self.inconn = inconn
+        self.frame_skip = frame_skip
+        self.count = 0
+    def __call__(self, img):
+        self.count +=1
+        if self.count % self.frame_skip ==0:
+            self.count = 0
+            img = (img).astype(np.uint8)
+            self.inconn.send(img)
+        return img
 

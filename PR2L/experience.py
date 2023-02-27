@@ -9,7 +9,6 @@ Experience = namedtuple("Experience", ("state", "action", "reward", "next"))
 NextExperience = namedtuple("NextExperience", ("state", "action", "reward", "done", "next"))
 
 
-
 class ExperienceSource:
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99):
         assert isinstance(agent, Agent)
@@ -175,8 +174,7 @@ class SimpleReplayBuffer:
     def __iter__(self):
         return iter(self.buffer)
 
-
-class ExperienceSourcev2:
+class ExperienceSourceV2:
     #remove all deque and arrays related to done flags since last_state=None is essentially done
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99):
         assert isinstance(agent, Agent)
@@ -225,8 +223,8 @@ class ExperienceSourcev2:
                 if done:
                     
                     #decay all
-                    _rewards[i] = self.decay_all_rewards(_rewards[i], self.gamma)
-                    
+                    self.__decay_all_rewards(_rewards[i])
+
                     for _ in range(len(_rewards[i])): #used to get proper length
                         exp = Experience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), None)
                         yield exp
@@ -235,41 +233,29 @@ class ExperienceSourcev2:
                     obs, _ = self.env[i].reset()
                     cur_obs[i] = obs
                     continue
-
+                
                 
                 cur_obs[i] = nextobs
 
                 #len(deque) is O(n)! TODO -> try to place rewards in an array instead of deque
                 if len(_actions[i]) == self.n_steps:
                     #decay for only the oldest
-                    _rewards[i] = self.decay_oldest_rewards(_rewards[i], self.gamma)
-    
+                    self.__decay_oldest_reward(_rewards[i])
+
                     exp = Experience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), nextobs)
                     yield exp
    
-    def decay_all_rewards(self, rewards, gamma):
-        for i in range(len(rewards)):
-            if i ==0:
-                r1 = rewards.pop()
-                r2 = 0
-            else:
-                r1 = rewards.pop()
-                r2 = rewards[0]
-            r = r1 + r2*gamma
-            rewards.appendleft(r)
-        return rewards
+    def __decay_all_rewards(self, rewards):
+        prev = 0.0
+        for i in reversed(range(len(rewards))):
+            rewards[i] += prev
+            prev = rewards[i] * self.gamma
 
-    def decay_oldest_rewards(self, rewards, gamma):
-        decayed = 0.0
-        for i in range(len(rewards)):
-            r = rewards.pop()
-            decayed *= gamma
-            decayed += r
-            if i == (len(rewards)):
-                rewards.appendleft(decayed)
-            else:
-                rewards.appendleft(r)
-        return rewards
+    def __decay_oldest_reward(self, rewards):
+        tot = 0.0
+        for r in reversed(rewards):
+             tot = r + tot* self.gamma
+        rewards[0] = tot
 
     def __sum_rewards_steps(self, reward, done, env_id):
         #keeps track of rewards and steps
@@ -288,3 +274,4 @@ class ExperienceSourcev2:
             self.tot_rewards.clear()
             self.tot_steps.clear()
         return res  
+    
