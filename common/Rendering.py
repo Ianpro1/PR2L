@@ -81,6 +81,7 @@ class grads_manager:
         min = layer.cpu().min().numpy()
         return [max, mean, min]
 
+
 class params_toDataFrame:
     #create an output file or returns a pandas DataFrame on demand which contains labeled parameters of the network
     #arguments: mean, max, min, rainbow-> return all
@@ -133,24 +134,34 @@ class params_toDataFrame:
         return self.frame
 
 
-
 def init_display(conn, width, height, frame_shape):
     #creates a pygame instance of rgb_array upon receive from a Pipe() (used for live rendering of agent)
     pygame.init()
     screen = pygame.display.set_mode((width, height))
     while True:
-        #print("receiving...")
+        
         frame = conn.recv()
         
-        #print(frame.shape)
         if frame is None:
             break
+        
+        channel_id = np.argmin(frame.shape)
+        channel_num = np.min(frame.shape)
+
+        frame = np.moveaxis(frame, channel_id, 2)
         screen.fill((255, 255, 255))
         frame = np.array(frame, dtype=np.float32).transpose(1,0,2)
         frame = np.repeat(frame, height // frame_shape[0], axis=0)
         frame = np.repeat(frame, width // frame_shape[1], axis=1)
-        frame = (frame).astype(np.uint8)
+
         
+        if channel_num < 3:
+            frame = frame[:, :, :1]
+            frame = np.repeat(frame, 3, axis=2)
+        elif channel_num > 3:
+            frame = frame[:, :, :3]
+        
+        frame = (frame).astype(np.uint8)
         pygame.surfarray.blit_array(screen, frame)
         pygame.display.update()
         for event in pygame.event.get():
@@ -197,6 +208,30 @@ def init_bar(data_shape, height, bar_width, conn, pool=1):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
-               
+     
+class HighLevelSendimg:
+    def __init__(self, inconn, frame_skip=2):
+        self.inconn = inconn
+        self.frame_skip = frame_skip
+        self.count = 0
+    def __call__(self, img):
+        self.count +=1
+        if self.count % self.frame_skip ==0:
+            self.count = 0
+            img = (img.transpose(1,2,0) * 255.).astype(np.uint8)
+            self.inconn.send(img)
+        return img
 
+class LowLevelSendimg:
+    def __init__(self, inconn, frame_skip=2):
+        self.inconn = inconn
+        self.frame_skip = frame_skip
+        self.count = 0
+    def __call__(self, img):
+        self.count +=1
+        if self.count % self.frame_skip ==0:
+            self.count = 0
+            img = (img).astype(np.uint8)
+            self.inconn.send(img)
+        return img
 

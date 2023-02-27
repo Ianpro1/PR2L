@@ -1,87 +1,58 @@
-import common.extentions as ex
-import common.models as models
-import torch
-import torch.nn as nn
-import gym
+from collections import deque
+import timeit
 import numpy as np
-from collections import namedtuple, deque
 
-class ActionSelector:
-    def __call__(self, x):
-        raise NotImplementedError
+def decay_oldest_reward(rewards, gamma):
+        decayed = 0.0
+        for i in range(len(rewards)):
+            r = rewards.pop()
+            decayed *= gamma
+            decayed += r
+            if i == (len(rewards)):
+                rewards.appendleft(decayed)
+            else:
+                rewards.appendleft(r)
+        return rewards
 
+def decay_oldest_rewardv2(rewards, gamma):
+        for i in range(1, len(rewards)):
+             rewards[0] += rewards[i] * gamma**i
+        return rewards
 
-class ArgmaxSelector(ActionSelector):
-
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self,x):
-        return x.argmax(dim=1)
-
-class Agent:
-    def __call__(self):
-        raise NotImplementedError
-
-def numpytotensor_preprossesing(x):
-    return torch.tensor(np.array(x))
-
-class BasicAgent(Agent):
-    def __init__(self, net, device="cpu", Selector= ArgmaxSelector(), preprocessing=numpytotensor_preprossesing):
-        super().__init__()
-        assert isinstance(Selector, ActionSelector)
-        self.selector = Selector
-        self.net = net
-        self.device = device
-        self.preprocessing = preprocessing
-
-    @torch.no_grad()
-    def __call__(self, x):
-        x = self.preprocessing(x)
-        x.to(self.device)
-        values = self.net(x)
-        return self.selector(values)
-
-
-class ExperienceSource:
-
-    def __init__(self, env, agent, n_steps=2):
-        assert isinstance(env, (gym.Env, list, tuple))
-        if isinstance(env, (list, tuple)):
-            self.env = env
-        else: 
-            self.env = [env]
-        self.agent = agent
-        self.n_steps = n_steps
-        self.states = []
-        self.actions = []
-        self.rewards = []
+def decay_oldest_rewardv3(rewards, gamma):
+        tot = 0.0
+        for r in reversed(rewards):
+             tot = r + tot*gamma
+        rewards[0] = tot
         
-    def __iter__(self):
-        
-        pass
+def all1():
+    my_deque = deque(np.ones_like(range(10)))
+    return decay_oldest_reward(my_deque, 0.99)
+
+def all2():
+    my_deque = deque(np.ones_like(range(10)))
+    return decay_oldest_rewardv2(my_deque, 0.99)
+
+def all3():
+    my_deque = deque(np.ones_like(range(10)))
+    return decay_oldest_rewardv3(my_deque, 0.99)
+
+def alllist():
+     my_list = list(np.ones_like(range(10)))
+     return decay_oldest_rewardv3(my_list, 0.99)
 
 
+print(all1(), all2(), all3())
+
+print(timeit.timeit(all1, number=100000))
+print(timeit.timeit(all2, number=100000))
+print(timeit.timeit(all3, number=100000))
+print(timeit.timeit(alllist, number=100000))
+
+'''print(
+    timeit.timeit(d, number=1000),
+    timeit.timeit(d2, number=1000),
+    timeit.timeit(l, number=1000)
+)'''
 
 
-device = "cpu"
-env = gym.make("Breakout-v4")
-
-class wrapobs(gym.ObservationWrapper):
-    def __init__(self, env):
-        super().__init__(env)
-    def observation(self, obs):
-        return np.moveaxis(obs, -1, 0).astype(np.float32)
-env = wrapobs(env)
-
-net = models.DualDQN((3,210,160), 4)
-
-agent = BasicAgent(net)
-
-
-
-
-
-obs, _ = env.reset()
-print(obs.shape)
-print(agent([obs]))

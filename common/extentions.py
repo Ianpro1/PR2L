@@ -5,7 +5,6 @@ import cv2
 import os
 import datetime
 
-
 #preprocessing
 
 class preprocessor:
@@ -90,16 +89,16 @@ def meanmax_weight(net):
         max_w.append(x.max().item())
         mean_w.append(x.mean().item())
     return mean_w, max_w
-    
-#model save
 
+
+#backups
 class ModelBackup:
     #simple class to save the model parameters and configs
     def __init__(self, root, net, notify=True, Temp_disable=False):
         self.dateroot = str(datetime.datetime.now().date())
-        self.date = datetime.datetime.now().strftime("(%H-%M)")
+        self.date = datetime.datetime.now().strftime("-%H-%M")
         
-        self.path = os.path.join(root, self.dateroot)
+        self.path = os.path.join("model_saves/" + root, self.dateroot)
         if os.path.isdir(self.path) ==False:
             os.makedirs(self.path)
         self.Temp_disable = Temp_disable
@@ -110,7 +109,7 @@ class ModelBackup:
 
     #upon calling save() parameters should be either None or dictionnary containing configs
     def save(self, parameters=None):
-        assert isinstance(parameters, (dict, None))
+        assert isinstance(parameters, (dict, type(None)))
         if self.Temp_disable:
             return None
         name = "modelsave%d_"%self.id + self.date + ".pt"
@@ -125,8 +124,8 @@ class ModelBackup:
         self.id += 1
         self.date = self.date = datetime.datetime.now().strftime("(%H-%M)")
 
-#rendering
 
+#rendering
 def playandsave_episode(render_source, env):
     #to upgrade
     assert type(render_source) == ptan.experience.ExperienceSource

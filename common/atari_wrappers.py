@@ -140,7 +140,7 @@ class AutomateFireAction(gym.Wrapper):
     def reset(self):
         obs, lives = self.env.reset()
         self.lives = lives["lives"]
-        return (obs, lives)
+        return obs, lives
 
     def step(self, action):
         obs, r, done, info, lives = self.env.step(action)
@@ -153,7 +153,7 @@ class AutomateFireAction(gym.Wrapper):
             else:
                 return obs, r, done, info, lives
         self.last = self.lives
-        return (obs, r, done, info, lives)
+        return obs, r, done, info, lives
 
 # well known wrappers (Some are incompatible with gym >= 0.26 and need fix due to outdated gym observations which used to return 4 objects)
 
@@ -267,8 +267,6 @@ class BufferWrapper(gym.ObservationWrapper):
         old_space = env.observation_space
        
         self.observation_space = gym.spaces.Box(old_space.low.repeat(n_steps, axis=0), old_space.high.repeat(n_steps, axis=0), dtype=dtype)
-
-        
 
     def reset(self):
         self.buffer = np.zeros_like(self.observation_space.low, dtype=self.dtype)

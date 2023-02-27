@@ -44,14 +44,14 @@ class DummyEnv(gym.Env):
         return self.r_func(r)
 
     def reset(self):
+        if self.warning:
+            print("Dummyreset...")
         info = None
         self.last_obs = self.reset_last()
         return (self.observation(self.obs), info)
 
     def step(self, action):
         info = None
-        if self.warning:
-            print("Dummyreset...")
         #prevent undefined behavior
         if self.last_obs[2] == True:
             if self.warning:
@@ -92,7 +92,14 @@ class EpisodeLength:
 
 class VaryObservation:
     #returns random pixel image observation of integer values 0->255 (in this case shape is user-defined)
-    @staticmethod
-    def __call__(x):
-        x = np.random.randint(0, 255, size=x.shape)
+    def __init__(self, dtype=np.uint8):
+        self.dtype = dtype
+    
+    def __call__(self, x):
+        x = np.random.randint(0, 255, size=x.shape).astype(self.dtype)
         return x
+
+def ScaleRGBimage(x):
+    #returns float version of RGB image with integer values from 0 to 255
+    x = x.astype(np.float32) / 255.
+    return x
