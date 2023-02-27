@@ -30,7 +30,7 @@ def unpack_batch(batch):
 class render_env(Wrapper):
     #simple wrapper that keeps a rgb_array_list from last env reset
     def __init__(self, env):
-        super().__info__(env)
+        super().__init__(env)
         self.rframes = []
 
     def reset(self):
@@ -85,31 +85,37 @@ class ModelBackup:
         if self.notify:
             print("created " + location)
     
-    def mkrender(self, fps=30.0):
+    def mkrender(self, fps=60.0, frametreshold=2000, colors=cv2.COLOR_RGB2BGR):
         if self.disable_mkrender:
             return 0
         else:
             obs, info = self.render_env.reset()
             obs = [obs]
-            action = self.agent(obs)
+            action = self.agent(obs)[0]
+            frameid=0
             while True:
+                frameid += 1
+                if self.notify:
+                    print(frameid)
                 obs, rew, done, trunc, info = self.render_env.step(action)
                 obs = [obs]
-                action = self.agent(obs)
-                if done:
+                action = self.agent(obs)[0]
+                
+                if done or frameid > frametreshold:
                     break
             
             date = str(datetime.datetime.now().date())
             time = datetime.datetime.now().strftime("-%H-%M")
-            temproot = os.path.join(self.path, "state_dicts", date)
+            temproot = os.path.join(self.path, "renders", date)
             if os.path.isdir(temproot) == False:
                 os.makedirs(temproot)
             frames = self.render_env.rframes
             height, width, channels = frames[0].shape
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            location = os.path.join(temproot, "save" + time +".pt")
+            location = os.path.join(temproot, "save" + time +".mp4")
             video = cv2.VideoWriter(location, fourcc, fps, (width, height))
             for frame in frames:
+                frame = cv2.cvtColor(frame, colors)
                 video.write(frame)
             video.release()
             return 1
