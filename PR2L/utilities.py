@@ -1,6 +1,9 @@
 import torch
 import datetime
 import os
+from gym import Wrapper
+import cv2
+import numpy as np
 
 
 def unpack_batch(batch):
@@ -24,11 +27,34 @@ def unpack_batch(batch):
 
 
 #backup
+class render_env(Wrapper):
+    #simple wrapper that keeps a rgb_array_list from last env reset
+    def __init__(self, env):
+        super().__info__(env)
+        self.rframes = []
+
+    def reset(self):
+        self.rframes.clear()
+        obs, info = self.env.reset()
+        self.rframes.append(self.env.render())
+        return obs, info
+    
+    def step(self, action):
+        obs, rew, done, trunc, info = self.env.step(action)
+        self.rframes.append(self.env.render())
+        return obs, rew, done, trunc, info
+
+
 class ModelBackup:
-    def __init__(self, ENV_NAME, iid, net, notify=True, env=None, render_source=None, folder="model_saves", prefix="model_"):
+    def __init__(self, ENV_NAME, iid, net, notify=True, render_env=None, agent=None, folder="model_saves", prefix="model_"):
         assert isinstance(iid, str)
-        self.env = env
-        self.render_source = render_source
+        if render_env is None or agent is None and notify:
+            self.disable_mkrender = True
+            print("Warning, argument missing for ModelBackup.mkrender and has been disabled")
+        else:
+            self.disable_mkrender = False
+        self.agent = agent
+        self.render_env = render_env
         self.net = net
         self.notify = notify
         self.path = os.path.join(folder, ENV_NAME, prefix+iid)
@@ -59,5 +85,31 @@ class ModelBackup:
         if self.notify:
             print("created " + location)
     
-    def mkrender(self):
-        pass  
+    def mkrender(self, fps=30.0):
+        if self.disable_mkrender:
+            return 0
+        else:
+            obs, info = self.render_env.reset()
+            obs = [obs]
+            action = self.agent(obs)
+            while True:
+                obs, rew, done, trunc, info = self.render_env.step(action)
+                obs = [obs]
+                action = self.agent(obs)
+                if done:
+                    break
+            
+            date = str(datetime.datetime.now().date())
+            time = datetime.datetime.now().strftime("-%H-%M")
+            temproot = os.path.join(self.path, "state_dicts", date)
+            if os.path.isdir(temproot) == False:
+                os.makedirs(temproot)
+            frames = self.render_env.rframes
+            height, width, channels = frames[0].shape
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            location = os.path.join(temproot, "save" + time +".pt")
+            video = cv2.VideoWriter(location, fourcc, fps, (width, height))
+            for frame in frames:
+                video.write(frame)
+            video.release()
+            return 1

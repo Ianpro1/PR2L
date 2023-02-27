@@ -81,6 +81,7 @@ class grads_manager:
         min = layer.cpu().min().numpy()
         return [max, mean, min]
 
+
 class params_toDataFrame:
     #create an output file or returns a pandas DataFrame on demand which contains labeled parameters of the network
     #arguments: mean, max, min, rainbow-> return all
