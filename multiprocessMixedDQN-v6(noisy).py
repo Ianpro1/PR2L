@@ -17,7 +17,7 @@ from gym.wrappers.atari_preprocessing import AtariPreprocessing
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
-    "ENV_NAME":"PongNoFrameskip-v4",
+    "ENV_NAME":"BreakoutNoFrameskip-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
@@ -42,21 +42,22 @@ class SingleChannelWrapper(gym.ObservationWrapper):
     def observation(self, observation):
         return np.array([observation])
 
-def make_env(ENV_NAME, inconn=None):
-        env = gym.make(ENV_NAME)
+def make_env(ENV_NAME, inconn=None, render=False):
+        
+        if render:
+            env = gym.make(ENV_NAME, render_mode="rgb_array")
+            env = utilities.render_env(env)
 
-        if inconn is not None: 
-            env = atari_wrappers.functionalObservationWrapper(env, Rendering.LowLevelSendimg(inconn, frame_skip=4)) 
+        else:
+            env = gym.make(ENV_NAME)
+            if inconn is not None: 
+                env = atari_wrappers.functionalObservationWrapper(env, Rendering.LowLevelSendimg(inconn, frame_skip=4)) 
         
         env = AtariPreprocessing(env)
         env = common_wrappers.RGBtoFLOAT(env)
         env = common_wrappers.BetaSumBufferWrapper(env, 3, 0.4)
         env = SingleChannelWrapper(env)
         #env = common_wrappers.PenalizedLossWrapper(env)
-        
-        '''if inconn is not None:
-            env = common_wrappers.LiveRenderWrapper(env, Rendering.HighLevelSendimg(inconn, frame_skip=8))'''
-
         return env
 
 def play_func(parameters, net, exp_queue, device, inconn=None):
@@ -71,8 +72,6 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         agent = agents.BasicAgent(net, device, selector)
         exp_source = experience.ExperienceSourceV2(env, agent, parameters['N_STEPS'], GAMMA=parameters.get('GAMMA', 0.99))
         
-        #Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")
-
         idz = 0
         for exp in exp_source:
             
@@ -99,12 +98,6 @@ def calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net):
         #compute tgt_q values (does not include dones)
         tgt_q = tgt_net.target_model(last_states)
         
-        '''#get index of best tgt_q values
-        tgt_actions = torch.argmax(tgt_q, 1).unsqueeze(1)
-        
-        #best tgt_q_v gathered
-        tgt_q = tgt_q.gather(1, tgt_actions).squeeze(1)'''
-
         tgt_q = tgt_q.max(dim=1)[0]
         
         #get back dones as 0 values
@@ -171,8 +164,9 @@ if __name__ == '__main__':
     net.share_memory()
     
     tgt_net = agents.TargetNet(net)
-    
-    backup = utilities.ModelBackup(parameters['ENV_NAME'],"001", net)
+    render_agent = agents.BasicAgent(net, device)
+    render_env = make_env(parameters["ENV_NAME"], render=True)
+    backup = utilities.ModelBackup(parameters['ENV_NAME'],"001", net, render_env=render_env, agent=render_agent)
     writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)  
     
     exp_queue = tmp.Queue(maxsize=Batch_MUL*2)
@@ -182,7 +176,7 @@ if __name__ == '__main__':
     net.apply(models.network_reset)
     time.sleep(1)
     net.apply(models.network_reset)
-    #net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_001/state_dicts/2023-02-26/save-21-45.pt"))
+    net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_001/state_dicts/2023-02-26/save-21-45.pt"))
     tgt_net.sync()
     
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
@@ -193,21 +187,14 @@ if __name__ == '__main__':
     BatchGen = BatchGenerator(buffer=buffer, exp_queue=exp_queue, initial= 2*parameters["BATCH_SIZE"], batch_size=parameters["BATCH_SIZE"])
 
     t1 = time.time()
-    Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
-    Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")
-    
-    solved = False
-    #grads = Rendering.grads_manager(net, func="mean", path='DataFrames/mainNetwork_grads.csv')
-    
+    solved = False    
     solved = deque(maxlen=20)
     solved.append(0.)
     rew_m = 0.
     loss = 404.
+    backup.mkrender(fps=160.0)
     for batch in BatchGen:
         idx +=1
-
-        #if idx % 500 == 0:
-            #grads.write_csv()
 
         for rewards, steps in BatchGen.pop_rewards_steps():
             t2 = time.time() - t1
@@ -226,6 +213,7 @@ if __name__ == '__main__':
             print("Solved!")
             parameters["complete"] = True
             backup.save(parameters=parameters)
+            backup.mkrender(fps=160.0)
             break          
 
         states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
@@ -237,10 +225,6 @@ if __name__ == '__main__':
 
         #print("hello")
         writer.add_scalar("loss", loss, idx)  
-
-        '''if idx %5000 == 0:
-            Rendering.params_toDataFrame(net, path="DataFrames/mainNetwork_params.csv")
-            #Rendering.params_toDataFrame(tgt_net.target_model, path="DataFrames/tgtNetwork_params.csv")'''
         
         if idx % parameters['TGT_NET_SYNC'] ==0:
             print("sync...")
@@ -248,5 +232,6 @@ if __name__ == '__main__':
     
         if idx % 40000 == 0:
             backup.save(parameters=parameters)
+            backup.mkrender(fps=160.0)
 
 
