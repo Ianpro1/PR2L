@@ -6,7 +6,7 @@ from PR2L import experience, agents, utilities
 import os
 import gym
 
-N_OUT = 4
+'''N_OUT = 4
 net = nn.Linear(1,N_OUT)
 
 input = torch.tensor([[1.]])
@@ -32,6 +32,8 @@ for x in range(10):
     net.weight = nn.Parameter(net.weight - w_grad)
     net.bias = nn.Parameter(net.bias - b_grad)
     net.zero_grad()
-    print("ent from max", max_ent - loss.absolute())
+    print("ent from max", max_ent - loss.absolute())'''
+
+print(2%2)
 
 

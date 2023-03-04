@@ -6,12 +6,12 @@ import numpy as np
 from common import models, extentions
 import gym
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
-from PR2L import common_wrappers, agents, experience, utilities
+from PR2L import common_wrappers, agents, experience, utilities, rendering
 import multiprocessing as mp
-import common.Rendering as rendering
 from collections import deque
 import torch.utils.tensorboard as tensorboard
-ENV_NAME = "CartPole-v1"
+
+ENV_NAME = "PongNoFrameskip-v4"
 ENTROPY_BETA = 0.01
 N_STEPS = 4
 EPSILON_START = 1.0
@@ -20,21 +20,8 @@ GAMMA = 0.99
 LEARNING_RATE = 0.001
 CLIP_GRAD = 0.1
 BETA_POLICY = 1.0
-device = "cpu"
+device = "cuda"
 NUM_ENV = 50
-
-class HighLevelSendimg:
-    def __init__(self, inconn, frame_skip=2):
-        self.inconn = inconn
-        self.frame_skip = frame_skip
-        self.count = 0
-    def __call__(self, img):
-        self.count +=1
-        if self.count % self.frame_skip ==0:
-            self.count = 0
-            img = (img.transpose(1,2,0) * 255. * 1.5).astype(np.uint8)
-            self.inconn.send(img)
-        return img
 
 class SingleChannelWrapper(gym.ObservationWrapper):
     def observation(self, observation):
@@ -42,30 +29,32 @@ class SingleChannelWrapper(gym.ObservationWrapper):
 
 def make_env(ENV_ID, inconn=None):
     env = gym.make(ENV_ID)
+    if inconn is not None:
+            env = rendering.SendimgWrapper(env, inconn, frame_skip=8)
     env = AtariPreprocessing(env)
     env = common_wrappers.RGBtoFLOAT(env)
     env = common_wrappers.BetaSumBufferWrapper(env, 5, 0.3)
     env = SingleChannelWrapper(env)
-    if inconn is not None:
-            env = common_wrappers.LiveRenderWrapper(env, HighLevelSendimg(inconn, frame_skip=8))
     return env
-
 
 
 if __name__ == "__main__":
 
-    #mp.set_start_method("spawn")
+    mp.set_start_method("spawn")
 
-    #inconn, outconn = mp.Pipe()
+    inconn, outconn = mp.Pipe()
     env = []
+    env1 = make_env(ENV_NAME, inconn)
+    env.append(env1)
     for _ in range(NUM_ENV):
-        e = gym.make(ENV_NAME)
+        e = make_env(ENV_NAME)
         env.append(e)
     
-    #p1 = mp.Process(target=rendering.init_display, args=(outconn, 336, 336, (84, 84))) #args=(outconn, 320, 420, (210, 160))
-    #p1.start()
+    p1 = mp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
+    p1.start()
 
-    net = models.LinearA2C((4,), 2).to(device)
+    #net = models.LinearA2C((4,), 2).to(device)
+    net = models.A2C((1,84,84), 4).to(device)
     print(net)
 
     agent = agents.PolicyAgent(net, device)
@@ -146,7 +135,7 @@ if __name__ == "__main__":
         #entropy (goal: maximizing the entropy)
         prob_v = F.softmax(logits_v, dim=1)
         ent = (prob_v * log_prob_v).sum(dim=1).mean()
-        entropy_loss_v = -ENTROPY_BETA * ent #should monitor entropy from max entropy without entropy loss 
+        entropy_loss_v = -ENTROPY_BETA * ent 
 
         #code to keep track of maximum gradient (careful, if backpropagation is done here then the loss must be changed accordingly)
         '''
@@ -161,7 +150,7 @@ if __name__ == "__main__":
         writer.add_scalar("policy_loss", loss_policy_v, idx)
         writer.add_scalar("value_loss", loss_value_v, idx)
 
-        loss_v =loss_policy_v + loss_value_v
+        loss_v =loss_policy_v + loss_value_v + entropy_loss_v
         loss_v.backward()
 
         nn_utils.clip_grad_norm_(net.parameters(), CLIP_GRAD)

@@ -1,17 +1,20 @@
+#DQN from the multiprocessMixedDQN family found in DQNModels (equivalent to multiprocessMixedDQN-v7(noisy))
+
+#Dual Model which uses NoisyLinear layers along with BatchNormalization
+
+#Changes from multiprocessMixedDQNs include:
+# not using Double DQN strategy, removed PriorityBuffer and using rendering from PR2L library
+ 
 import gym
 import numpy as np
 import torch
 import torch.nn.utils as utils
-import common.extentions as E
 import common.models as models
-import common.atari_wrappers as atari_wrappers
 from torch.utils.tensorboard import SummaryWriter
 import time
 from collections import namedtuple, deque
-import common.Rendering as Rendering
 import torch.multiprocessing as tmp
-from PR2L import utilities, agents, experience, common_wrappers
-import common.performance as performance
+from PR2L import utilities, agents, experience, common_wrappers, rendering
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
@@ -26,38 +29,32 @@ parameters = {
     "BATCH_SIZE":32,
     "REPLAY_SIZE":10000,
     "Noisy": True,
-    "CLIP_GRAD":0.2,
-    "SOLVED":300
+    "CLIP_GRAD":0.1,
+    "SOLVED":300,
+    "device": "cuda"
 }
 
-CLIP_GRAD = parameters['CLIP_GRAD']
-N_STEPS = parameters['N_STEPS']
-solved_treshold = parameters["SOLVED"]
-device = "cuda"
-gamma = parameters['GAMMA']
+device = parameters["device"]
 preprocessor = agents.numpytoFloatTensor_preprossesing
-
 
 class SingleChannelWrapper(gym.ObservationWrapper):
     def observation(self, observation):
         return np.array([observation])
 
-def make_env(ENV_NAME, inconn=None, render=False):
-        
+def make_env(ENV_NAME, inconn=None, render=False): 
         if render:
             env = gym.make(ENV_NAME, render_mode="rgb_array")
             env = utilities.render_env(env)
-
         else:
             env = gym.make(ENV_NAME)
             if inconn is not None: 
-                env = atari_wrappers.functionalObservationWrapper(env, Rendering.LowLevelSendimg(inconn, frame_skip=4)) 
-        
+                env = rendering.SendimgWrapper(env, inconn, frame_skip=4) 
         env = AtariPreprocessing(env)
         env = common_wrappers.RGBtoFLOAT(env)
         env = common_wrappers.BetaSumBufferWrapper(env, 3, 0.4)
         env = SingleChannelWrapper(env)
-        #env = common_wrappers.PenalizedLossWrapper(env)
+        #specific to atariBreakout
+        env = common_wrappers.PenalizedLossWrapper(env)
         return env
 
 def play_func(parameters, net, exp_queue, device, inconn=None):
@@ -92,8 +89,8 @@ def calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net):
     states = preprocessor(states).to(device)
     actions = torch.tensor(np.array(actions, copy=False)).to(device)
 
-
-    with torch.no_grad(): #try to use numpy instead
+    #Warning: rare error thrown when len(last_states) < 1
+    with torch.no_grad(): #TODO use numpy instead
 
         #compute tgt_q values (does not include dones)
         tgt_q = tgt_net.target_model(last_states)
@@ -106,7 +103,7 @@ def calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net):
         tgt_q_v[not_dones] = tgt_q
     
         #bellman step
-        q_v_refs = rewards + tgt_q_v * (gamma**N_STEPS)
+        q_v_refs = rewards + tgt_q_v * (parameters["GAMMA"]**parameters["N_STEPS"])
 
     optimizer.zero_grad()
     q_v = net(states)
@@ -149,14 +146,13 @@ if __name__ == '__main__':
 
     #init display
     inconn, outconn = tmp.Pipe()
-    p1 = tmp.Process(target=Rendering.init_display, args=(outconn, 320, 420, (210, 160))) #args=(outconn, 320, 420, (210, 160)) args=(outconn, 336, 336, (84, 84))
+    p1 = tmp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
     p1.start()
     
-    
     #multiprocessing for training
-    
     Batch_MUL = 4
     
+    #specific for atari
     obs_shape = (1, 84, 84)
     n_actions = 4
     
@@ -166,7 +162,7 @@ if __name__ == '__main__':
     tgt_net = agents.TargetNet(net)
     render_agent = agents.BasicAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)
-    backup = utilities.ModelBackup(parameters['ENV_NAME'],"001", net, render_env=render_env, agent=render_agent)
+    backup = utilities.ModelBackup(parameters['ENV_NAME'],"002", net, render_env=render_env, agent=render_agent)
     writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)  
     
     exp_queue = tmp.Queue(maxsize=Batch_MUL*2)
@@ -176,7 +172,7 @@ if __name__ == '__main__':
     net.apply(models.network_reset)
     time.sleep(1)
     net.apply(models.network_reset)
-    net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_001/state_dicts/2023-02-26/save-21-45.pt"))
+    #net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_001/state_dicts/2023-02-26/save-21-45.pt"))
     tgt_net.sync()
     
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
@@ -192,7 +188,7 @@ if __name__ == '__main__':
     solved.append(0.)
     rew_m = 0.
     loss = 404.
-    backup.mkrender(fps=160.0)
+
     for batch in BatchGen:
         idx +=1
 
@@ -209,7 +205,7 @@ if __name__ == '__main__':
 
             solved.append(rewards)
 
-        if rew_m > solved_treshold:
+        if rew_m > parameters["SOLVED"]:
             print("Solved!")
             parameters["complete"] = True
             backup.save(parameters=parameters)
@@ -220,10 +216,9 @@ if __name__ == '__main__':
         loss = calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net)
         loss.backward()
 
-        utils.clip_grad_norm_(net.parameters(), CLIP_GRAD)
+        utils.clip_grad_norm_(net.parameters(), parameters["CLIP_GRAD"])
         optimizer.step()
 
-        #print("hello")
         writer.add_scalar("loss", loss, idx)  
         
         if idx % parameters['TGT_NET_SYNC'] ==0:
@@ -233,5 +228,3 @@ if __name__ == '__main__':
         if idx % 40000 == 0:
             backup.save(parameters=parameters)
             backup.mkrender(fps=160.0)
-
-

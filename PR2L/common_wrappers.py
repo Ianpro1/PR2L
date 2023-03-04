@@ -184,12 +184,12 @@ class BetaSumBufferWrapper(gym.Wrapper):
 
 
 class PenalizedLossWrapper(gym.Wrapper):
-    def __init__(self, env, penality=-1.):
+    def __init__(self, env, penality=-1., abs_treshold=1.):
         super().__init__(env)
         self.LossWrapperlives = 0.0
         self.lastlwl = 0.0
         self.penality = penality
-    
+        self.abs_treshold = abs_treshold
     def step(self, action):
         obs, rew, done, trunc, info = self.env.step(action)
 
@@ -198,6 +198,8 @@ class PenalizedLossWrapper(gym.Wrapper):
             obs, rew, done, trunc, info = self.env.step(1)
             rew += self.penality
         
+        if self.abs_treshold is not None and rew.__abs__() > self.abs_treshold:
+            rew = rew / rew.__abs__() * self.abs_treshold
         return obs, rew, done, trunc, info
     
     def reset(self):

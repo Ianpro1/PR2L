@@ -5,9 +5,9 @@ from gym import Wrapper
 import cv2
 import numpy as np
 
-
 def unpack_batch(batch):
-    #Note: the unpack function returns a reduce size last_state list (does not include terminated states)
+    #Note: last_states batch does not include terminated states (states equal to None)
+    #This function assumes len(last_states) < 1 is handled properly during training
     states = []
     rewards = []
     actions = []
