@@ -24,6 +24,7 @@ class ProbabilitySelector(ActionSelector):
             actions.append(np.random.choice(len(probs), p=probs))
         return np.array(actions)
 
+
 class EpsilonGreedySelector(ActionSelector):
     def __init__(self, epsilon, selector=None):
         super().__init__()
@@ -92,7 +93,7 @@ class BasicAgent(Agent):
         return actions
 
 class PolicyAgent(Agent):
-    def __init__(self, net, device="cpu", Selector= ArgmaxSelector(), preprocessing=numpytoFloatTensor_preprossesing):
+    def __init__(self, net, device="cpu", Selector= ProbabilitySelector(), preprocessing=numpytoFloatTensor_preprossesing):
         super().__init__()
         assert isinstance(Selector, ActionSelector)
         self.selector = Selector

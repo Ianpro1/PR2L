@@ -17,7 +17,7 @@ class Netw(nn.Module):
     def __call__(self, x):
         return self.lin(x)
 
-device = "cuda"
+device = "cpu"
 
 net = Netw(device)
 print(net)
@@ -70,23 +70,41 @@ for x in range(10000):
     print(loss)
 '''
 
-class SubstrationTask:
 
+class SubstrationTask:
+    def __init__(self):
+        self.buffer = None
     def get(self, batch_size):
         input_v = np.random.random(size=(batch_size,2))
-        target_v = input_v[:, 0] - input_v[:, 1]
+
+        target_v = input_v[:, 0] + input_v[:, 1]
         return input_v, target_v
+    
+    def create_buffer(self, size):
+        self.buffer = self.get(batch_size=size)
+    
+    def sample(self, size):
+        
+        idx = np.random.randint(0, len(self.buffer[0]) - 1, size)
+        return self.buffer[0][idx], self.buffer[1][idx]
+
+
 
 device = "cpu"
 
 env = SubstrationTask()
+env.create_buffer(1000)
+print(env.sample(10))
+
 lin = nn.Linear(2, 1)
-optimizer = torch.optim.SGD(lin.parameters(), lr=1e-1)
+optimizer = torch.optim.SGD(lin.parameters(), lr=1e-3)
 lin.to(device)
+idx = 0
+
 
 for x in range(10000):
     optimizer.zero_grad()
-    x,y = env.get(1)
+    x, y = env.sample(4)
     x = p(x).to(device)
     y = p(y).to(device)
     pred = lin(x)
@@ -98,9 +116,3 @@ for x in range(10000):
 
 
 print([x for x in lin.parameters()])
-
-
-
-
-
-

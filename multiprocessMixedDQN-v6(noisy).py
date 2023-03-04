@@ -111,7 +111,7 @@ def calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net):
         #implementation 1
         tgt_q_v = torch.zeros_like(rewards) #used rewards to get shape
         tgt_q_v[not_dones] = tgt_q
-        
+    
         #bellman step
         q_v_refs = rewards + tgt_q_v * (gamma**N_STEPS)
 
