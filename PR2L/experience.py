@@ -1,6 +1,6 @@
 import gym
 from collections import namedtuple, deque
-from .agents import Agent
+from .agent import Agent
 import numpy as np
 
 #Experience tuple not implemented yet

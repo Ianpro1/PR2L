@@ -6,7 +6,7 @@ import numpy as np
 from common import models, extentions
 import gym
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
-from PR2L import common_wrappers, agents, experience, utilities, rendering
+from PR2L import agent, common_wrappers, experience, utilities, rendering
 import multiprocessing as mp
 from collections import deque
 import torch.utils.tensorboard as tensorboard
@@ -33,7 +33,7 @@ def make_env(ENV_ID, inconn=None):
             env = rendering.SendimgWrapper(env, inconn, frame_skip=8)
     env = AtariPreprocessing(env)
     env = common_wrappers.RGBtoFLOAT(env)
-    env = common_wrappers.BetaSumBufferWrapper(env, 5, 0.3)
+    env = common_wrappers.BetaSumBufferWrapper(env, 3, 0.4)
     env = SingleChannelWrapper(env)
     return env
 
@@ -57,9 +57,9 @@ if __name__ == "__main__":
     net = models.A2C((1,84,84), 4).to(device)
     print(net)
 
-    agent = agents.PolicyAgent(net, device)
-    exp_source = experience.ExperienceSourceV2(env, agent, N_STEPS)
-    preprocessor = agents.numpytoFloatTensor_preprossesing
+    _agent = agent.PolicyAgent(net, device)
+    exp_source = experience.ExperienceSourceV2(env, _agent, N_STEPS)
+    preprocessor = agent.numpytoFloatTensor_preprossesing
     
     optimizer = torch.optim.Adam(net.parameters(), lr=LEARNING_RATE, eps=1e-3)
 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
         if len(batch) < BATCH_SIZE:
             continue
-
+        
         states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch) #TODO 
 
         states = preprocessor(states).to(device)

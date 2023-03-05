@@ -9,7 +9,7 @@ import time
 from collections import namedtuple, deque
 import common.Rendering as Rendering
 import torch.multiprocessing as tmp
-from PR2L import utilities, agents, experience, common_wrappers
+from PR2L import agent, utilities, experience, common_wrappers
 import common.performance as performance
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 
@@ -29,7 +29,7 @@ parameters = {
 
 device = "cuda"
 gamma = parameters['GAMMA']
-preprocessor = agents.numpytoFloatTensor_preprossesing
+preprocessor = agent.numpytoFloatTensor_preprossesing
 
 class sendimg:
     def __init__(self, inconn, frame_skip=2):
@@ -75,8 +75,8 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         epsilon_start = parameters["EPSILON"]
         epsilon = epsilon_start
 
-        selector = agents.EpsilonGreedySelector(epsilon_start)
-        agent = agents.BasicAgent(net, device, selector)
+        selector = agent.EpsilonGreedySelector(epsilon_start)
+        agent = agent.BasicAgent(net, device, selector)
         exp_source = experience.ExperienceSource(env, agent, parameters['N_STEPS'], GAMMA=parameters.get('GAMMA', 0.99))
         #time.sleep(1)
         Rendering.params_toDataFrame(net, path="DataFrames/parallelNetwork_params.csv")
@@ -180,7 +180,7 @@ if __name__ == '__main__':
     net = models.DualDQN(obs_shape, n_actions).to(device)
     net.share_memory()
     
-    tgt_net = agents.TargetNet(net)
+    tgt_net = agent.TargetNet(net)
     
     backup = E.ModelBackup(parameters['ENV_NAME'], net=net, notify=True)
     writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)  

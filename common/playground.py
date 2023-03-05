@@ -1,6 +1,7 @@
 #this file is for testing purposes with a dumb linear environment
 import numpy as np
 import gym
+
 class DummyEnv(gym.Env):
     # environment that performs simple actions (user-defined)
     # configured as a gym env from ~ v0.26
@@ -48,7 +49,9 @@ class DummyEnv(gym.Env):
             print("Dummyreset...")
         info = None
         self.last_obs = self.reset_last()
-        return (self.observation(self.obs), info)
+        obs = (self.observation(self.obs), info)
+        self.obs = obs
+        return obs
 
     def step(self, action):
         info = None
@@ -60,6 +63,7 @@ class DummyEnv(gym.Env):
         else:
             obs = (self.observation(self.obs), self.reward(self.r_value), self.done(False), False, info)
             self.last_obs = obs
+            self.obs = obs
             return obs
 
 class OldDummyWrapper(DummyEnv):

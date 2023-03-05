@@ -87,7 +87,7 @@ if __name__ == '__main__':
     buffer = ptan.experience.PrioritizedReplayBuffer(exp_source, parameters["REPLAY_SIZE"], alpha=parameters["PRIO_REPLAY_ALPHA"])
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
 
-    
+
     idx = 0
     episode = 0
     ts_frame = 0

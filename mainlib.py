@@ -1,4 +1,4 @@
-from PR2L import experience, agents, utilities
+from PR2L import agent, experience, utilities
 from common import models, playground
 import numpy as np
 import time
@@ -11,7 +11,7 @@ def observation(x):
 
 env = playground.DummyEnv((1,), observation_func=observation, done_func=playground.EpisodeLength(4))
 net = models.DenseDQN(1,2,4)
-agent = agents.BasicAgent(net, device)
+agent = agent.BasicAgent(net, device)
 exp_source = experience.ExperienceSourceV2(env, agent,n_steps=1)
 buffer = experience.SimpleReplayBuffer(exp_source, 100)
 

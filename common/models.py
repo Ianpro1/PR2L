@@ -201,14 +201,14 @@ class A2C(nn.Module):
 
         conv_shape = self._get_conv_out(input_shape)
         self.value = nn.Sequential(
-            nn.Linear(conv_shape, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1)
+            nn.Linear(conv_shape, 516),
+            nn.LeakyReLU(),
+            nn.Linear(516, 1)
         )
         self.policy = nn.Sequential(
-            nn.Linear(conv_shape, 512),
-            nn.ReLU(),
-            nn.Linear(512, n_actions)
+            nn.Linear(conv_shape, 516),
+            nn.LeakyReLU(),
+            nn.Linear(516, n_actions)
         )
     
     def _get_conv_out(self, shape):

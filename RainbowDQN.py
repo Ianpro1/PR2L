@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 from collections import namedtuple, deque
 import torch.multiprocessing as tmp
-from PR2L import utilities, agents, experience, common_wrappers, rendering
+from PR2L import agent, utilities, experience, common_wrappers, rendering
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
@@ -35,7 +35,7 @@ parameters = {
 }
 
 device = parameters["device"]
-preprocessor = agents.numpytoFloatTensor_preprossesing
+preprocessor = agent.numpytoFloatTensor_preprossesing
 
 class SingleChannelWrapper(gym.ObservationWrapper):
     def observation(self, observation):
@@ -65,8 +65,8 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         
         env = [env1, env2, env3]
         print(net)
-        selector = agents.ArgmaxSelector()
-        agent = agents.BasicAgent(net, device, selector)
+        selector = agent.ArgmaxSelector()
+        agent = agent.BasicAgent(net, device, selector)
         exp_source = experience.ExperienceSourceV2(env, agent, parameters['N_STEPS'], GAMMA=parameters.get('GAMMA', 0.99))
         
         idz = 0
@@ -159,8 +159,8 @@ if __name__ == '__main__':
     net = models.NoisyDualDQN(obs_shape, n_actions).to(device)
     net.share_memory()
     
-    tgt_net = agents.TargetNet(net)
-    render_agent = agents.BasicAgent(net, device)
+    tgt_net = agent.TargetNet(net)
+    render_agent = agent.BasicAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)
     backup = utilities.ModelBackup(parameters['ENV_NAME'],"002", net, render_env=render_env, agent=render_agent)
     writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)  

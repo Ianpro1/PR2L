@@ -171,10 +171,10 @@ def init_display(conn, width, height, frame_shape):
 
 
 
-def init_bar(data_shape, height, bar_width, conn, pool=1):
+def init_bar(data_shape, height, bar_width, conn):
     #creates a pygame instance of a bar chart of user-defined pixel length (this can be used for live rendering)
     if len(data_shape) != 1:
-        raise MemoryError
+        raise "unknown data_shape"
     pygame.init()
     dlen = data_shape[-1]
     screen = pygame.display.set_mode((dlen * bar_width, height))
@@ -202,6 +202,7 @@ def init_bar(data_shape, height, bar_width, conn, pool=1):
         frame = np.repeat(frame, bar_width, 0)
         frame = (frame).astype(np.uint8)
         frame = np.array([frame] * 3).transpose(1,2,0)
+        
         pygame.surfarray.blit_array(screen, frame)
         pygame.display.update()
         for event in pygame.event.get():

@@ -1,7 +1,7 @@
 from common import playground, models
 import numpy as np
 import torch
-from PR2L import experience, agents
+from PR2L import agent, experience
 import ptan
 import timeit
 
@@ -16,7 +16,7 @@ env = [env1, env2, env3]
 
 net = models.DenseDQN(1, 128, 4)
 
-agent = agents.BasicAgent(net)
+agent = agent.BasicAgent(net)
 exp_source = experience.ExperienceSource(env, agent, N_STEPS, 0.99)
 exp_sourcev2 = experience.ExperienceSourceV2(env, agent, N_STEPS, 0.99)
 

@@ -92,6 +92,7 @@ class BasicAgent(Agent):
         actions = self.selector(values.cpu().numpy())
         return actions
 
+
 class PolicyAgent(Agent):
     def __init__(self, net, device="cpu", Selector= ProbabilitySelector(), preprocessing=numpytoFloatTensor_preprossesing):
         super().__init__()
@@ -104,7 +105,7 @@ class PolicyAgent(Agent):
     @torch.no_grad()
     def __call__(self, x):
         x = self.preprocessing(x)
-        act_v, _ = self.net(x.to(self.device))
+        act_v = self.net(x.to(self.device))[0]
         act_v = F.softmax(act_v, dim=1)
         actions = self.selector(act_v.cpu().numpy())
         return actions
