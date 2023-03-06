@@ -67,7 +67,7 @@ def play_func(parameters, net, exp_queue, device, inconn=None):
         print(net)
         selector = agent.ArgmaxSelector()
         agent = agent.BasicAgent(net, device, selector)
-        exp_source = experience.ExperienceSourceV2(env, agent, parameters['N_STEPS'], GAMMA=parameters.get('GAMMA', 0.99))
+        exp_source = experience.ExperienceSource(env, agent, parameters['N_STEPS'], GAMMA=parameters.get('GAMMA', 0.99))
         
         idz = 0
         for exp in exp_source:

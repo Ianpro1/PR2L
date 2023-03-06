@@ -5,7 +5,7 @@ import numpy as np
 class Dummy(gym.Env):
     def __init__(self, obs_shape, obs_func=None, rew_func=None, done_func=None, trunc_func=None, info_func=None):
         self.cur_obs = None
-
+        self.shape = obs_shape
         if obs_func:
             self.obs_func = obs_func
         else:
@@ -67,7 +67,7 @@ class EpisodeLength:
     def __init__(self, length):
         self.len = length
         self.count = 0
-    def __call__(self, done):
+    def __call__(self, y, done):
         if self.count > self.len -2:
             self.count = 0
             return True
@@ -80,11 +80,11 @@ class VaryObservation:
     def __init__(self, dtype=np.uint8):
         self.dtype = dtype
     
-    def __call__(self, x):
-        x = np.random.randint(0, 255, size=x.shape).astype(self.dtype)
+    def __call__(self, y, x):
+        x = np.random.randint(0, 255, size=y.shape).astype(self.dtype)
         return x
 
-def ScaleRGBimage(x):
+def ScaleRGBimage(y, x):
     #returns float version of RGB image with integer values from 0 to 255
     x = x.astype(np.float32) / 255.
     return x

@@ -58,7 +58,7 @@ if __name__ == "__main__":
     print(net)
 
     _agent = agent.PolicyAgent(net, device)
-    exp_source = experience.ExperienceSourceV2(env, _agent, N_STEPS)
+    exp_source = experience.ExperienceSource(env, _agent, N_STEPS)
     preprocessor = agent.numpytoFloatTensor_preprossesing
     
     optimizer = torch.optim.Adam(net.parameters(), lr=LEARNING_RATE, eps=1e-3)

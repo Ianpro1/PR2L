@@ -57,7 +57,7 @@ def grads_func(proc_name, net, device, train_queue, inconn=None):
         envs.append(env)
 
     _agent = agent.PolicyAgent(net, device)
-    exp_source = experience.ExperienceSourceV2(envs, _agent, n_steps=N_STEPS, GAMMA=GAMMA)
+    exp_source = experience.ExperienceSource(envs, _agent, n_steps=N_STEPS, GAMMA=GAMMA)
     batch = []
     frame_idx = 0
     writer =SummaryWriter(comment=proc_name)

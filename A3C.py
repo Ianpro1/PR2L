@@ -67,7 +67,7 @@ def play_env(env_number, net, queue, minibatch_size, device="cpu", inconn=None):
 
     env = make_envlist(env_number, parameters["ENV_NAME"], inconn)
     _agent = agent.PolicyAgent(net, device)
-    exp_source = experience.ExperienceSourceV2(env, _agent, n_steps=parameters["N_STEPS"], GAMMA=parameters["GAMMA"])
+    exp_source = experience.ExperienceSource(env, _agent, n_steps=parameters["N_STEPS"], GAMMA=parameters["GAMMA"])
 
     minibatch = []
     fpscount = FPScounter(10000)
@@ -162,9 +162,9 @@ if __name__ == "__main__":
     mean_r = 0
     
     for idx, batch in enumerate(buffer):
-        if idx % 10000 == 0:
+        if idx % 30000 == 0:
             backup.save(parameters)
-            backup.mkrender(fps=140.0, frametreshold=5000)
+            backup.mkrender(fps=120.0, frametreshold=5000)
 
         for rewards, steps in buffer.pop_rewards_steps():
             mean_rewards.append(rewards)
