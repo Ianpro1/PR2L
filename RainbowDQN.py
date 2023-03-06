@@ -216,7 +216,7 @@ if __name__ == '__main__':
         loss = calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net)
         loss.backward()
 
-        utils.clip_grad_norm_(net.parameters(), parameters["CLIP_GRAD"])
+        #utils.clip_grad_norm_(net.parameters(), parameters["CLIP_GRAD"])
         optimizer.step()
 
         writer.add_scalar("loss", loss, idx)  

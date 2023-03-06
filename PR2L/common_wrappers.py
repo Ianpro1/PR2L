@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 from collections import deque
 import math
+
 class process84Wrapper(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)

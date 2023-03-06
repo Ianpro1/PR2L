@@ -76,9 +76,10 @@ def calc_grad(net):
     grad_count = 0
     grad_means = 0
     for p in net.parameters():
-        grad_max = max(grad_max, p.grad.abs().max().item())
-        grad_means += (p.grad ** 2).mean().sqrt().item()
-        grad_count += 1
+        if p.grad is not None:
+            grad_max = max(grad_max, p.grad.abs().max().item())
+            grad_means += (p.grad ** 2).mean().sqrt().item()
+            grad_count += 1
     return grad_means/grad_count, grad_max
     
 def meanmax_weight(net):

@@ -275,3 +275,7 @@ class ExperienceSourceV2:
             self.tot_steps.clear()
         return res  
     
+
+#TODO HeldExperienceSource (holds terminated environments until all are finished)
+#TODO EpisodeSource
+#TODO SyncExperienceSource

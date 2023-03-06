@@ -136,7 +136,7 @@ if __name__ == "__main__":
         prob_v = F.softmax(logits_v, dim=1)
         ent = (prob_v * log_prob_v).sum(dim=1).mean()
         entropy_loss_v = -ENTROPY_BETA * ent 
-
+        
         #code to keep track of maximum gradient (careful, if backpropagation is done here then the loss must be changed accordingly)
         '''
         loss_policy_v.backward(retain_graph=True)

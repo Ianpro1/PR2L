@@ -1,5 +1,5 @@
 import torch
-import torch.utils.tensorboard as tensorboard
+from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 import torch.nn.utils as nn_utils
 from PR2L import agent, utilities, rendering, common_wrappers, experience
@@ -8,39 +8,44 @@ import numpy as np
 import gym
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 from collections import namedtuple, deque
-from common import models, Rendering
+from common import models, extentions
 from common.performance import FPScounter
 
 parameters = {
 "ENV_NAME":"PongNoFrameskip-v4",
 "BETA_ENTROPY": 0.01,
+"BETA_POLICY": 0.5,
 "N_STEPS": 4,
-"BATCH_SIZE":128,
 "GAMMA":0.99,
-"LEARNING_RATE":0.005,
+"LEARNING_RATE":0.001,
 "CLIP_GRAD":0.1,
 "device":"cuda",
-"PROCESS_COUNT": 3,
+"PROCESS_COUNT": 4,
 "eps": 1e-3,
 "MINIBATCH_SIZE":32,
-"NUM_ENVS": 8
+"NUM_ENVS": 8,
+"solved":20
 }
 
 GAMMA = parameters.get("GAMMA", 0.99)
 N_STEPS = parameters.get("N_STEPS", 4)
 CLIP_GRAD = parameters["CLIP_GRAD"]
+BETA_POLICY = parameters["BETA_POLICY"]
 BETA_ENTROPY = parameters["BETA_ENTROPY"]
 device = parameters["device"]
+preprocessor = agent.numpytoFloatTensor_preprossesing
 
 class SingleChannelWrapper(gym.ObservationWrapper):
     def observation(self, observation):
         return np.array([observation])
     
 def make_env(ENV_ID, inconn=None, render=False):
-    env = gym.make(ENV_ID)
+    
     if render:
+        env = gym.make(ENV_ID, render_mode="rgb_array")
         env = utilities.render_env(env)
     else:
+        env = gym.make(ENV_ID)
         if inconn is not None:
                 env = rendering.SendimgWrapper(env, inconn, frame_skip=12)
     env = AtariPreprocessing(env)
@@ -58,30 +63,30 @@ def make_envlist(number, ENV_ID, inconn=None):
 
 
 EpisodeEnd = namedtuple("EpisodeEnd", ("rewards", "steps"))
-
+import time
 def play_env(env_number, net, queue, minibatch_size, device="cpu", inconn=None):
 
     env = make_envlist(env_number, parameters["ENV_NAME"], inconn)
-
     _agent = agent.PolicyAgent(net, device)
-
     exp_source = experience.ExperienceSourceV2(env, _agent, n_steps=parameters["N_STEPS"], GAMMA=parameters["GAMMA"])
 
     minibatch = []
     fpscount = FPScounter(10000)
+    
     for exp in exp_source:
         fpscount.step()
         minibatch.append(exp)
 
         if len(minibatch) >= minibatch_size:
+            #random_batch = random.sample(minibatch, minibatch_size)
             queue.put(minibatch.copy())
-            minibatch.clear()
+            minibatch.clear() 
         
         for rewards, steps in exp_source.pop_rewards_steps():
             end = EpisodeEnd(rewards, steps)
             queue.put(end)
  
-   
+
 class BatchGenerator:
     def __init__(self, exp_queue, PROCESS_COUNT):
         self.queue = exp_queue
@@ -93,19 +98,17 @@ class BatchGenerator:
         batch = []
         idx = 0
         while True:
-            exp = self.queue.get()
-            
-            if exp:                
-                if isinstance(exp, EpisodeEnd):
-                    self.rewards.append(exp.rewards)
-                    self.steps.append(exp.steps)
-                    continue
-                idx +=1
-                batch.extend(exp)
+            exp = self.queue.get()         
+            if isinstance(exp, EpisodeEnd):
+                self.rewards.append(exp.rewards)
+                self.steps.append(exp.steps)
+                continue
+            idx +=1
+            batch.extend(exp)
 
-                if idx % self.PROCESS_COUNT == 0:
-                    yield batch
-                    batch.clear()
+            if idx % self.PROCESS_COUNT == 0:
+                yield batch
+                batch.clear()
 
     def pop_rewards_steps(self):
         res = list(zip(self.rewards, self.steps))
@@ -120,9 +123,13 @@ if __name__ == "__main__":
     mp.set_start_method("spawn")
     exp_queue = mp.Queue(maxsize=parameters["PROCESS_COUNT"])
 
-    inconn, outconn = mp.Pipe()
-    display = mp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
-    display.start()
+    if True:
+        inconn, outconn = mp.Pipe()
+        display = mp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
+        display.start()
+    else:
+        inconn = None
+
     net = models.A2C((1,84,84), 4).to(device)
     net.share_memory()
 
@@ -139,67 +146,85 @@ if __name__ == "__main__":
     buffer = BatchGenerator(exp_queue, parameters["PROCESS_COUNT"])
 
     mean_rewards = deque(maxlen=20)
-    preprocessor = agent.numpytoFloatTensor_preprossesing
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters["LEARNING_RATE"], eps=parameters["eps"])
-    writer = tensorboard.SummaryWriter()
-
-
+    
+    print(net)
     net.apply(models.network_reset)
+
+    writer = SummaryWriter()
+    render_agent = agent.PolicyAgent(net, device)
+    render_env = make_env(parameters["ENV_NAME"], render=True)
+    backup = utilities.ModelBackup(parameters["ENV_NAME"], "002", net, render_env=render_env, agent=render_agent)
+    
+    solved = parameters["solved"]
+    mean_r = 0
+    
     for idx, batch in enumerate(buffer):
+        
         for rewards, steps in buffer.pop_rewards_steps():
             mean_rewards.append(rewards)
             mean_r = np.asarray(mean_rewards).mean()
-            print("mean_rewards %.2f, rewards %.2f, steps %d" % (mean_r, rewards, steps))
+            print("idx %d, mean_rewards %.2f, cur_rewards %.2f, steps %d" % (idx, mean_r, rewards, steps))
 
+        if mean_r > solved:
+            backup.save(parameters)
+            backup.mkrender(fps=160.0, frametreshold=4000)
+        
         batch_len = len(batch)
+        
         states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
         
         states = preprocessor(states).to(device)
         rewards = preprocessor(rewards).to(device)
         actions = torch.LongTensor(np.array(actions, copy=False)).to(device)
-        last_states = preprocessor(last_states).to(device)
+        if last_states:
+            last_states = preprocessor(last_states).to(device)
+            tgt_q = torch.zeros_like(rewards)
+            with torch.no_grad():
+                next_q_v = net(last_states)[1]
 
-        with torch.no_grad():
-            if len(last_states) < 1:
-                tgt_q_v = torch.zeros_like(rewards)
-                #get last_states_v (missing dones)
-                #receiving empty tensor, error is due to not_dones being all false
-                last_vals_v = net(last_states)[1]
+            tgt_q[not_dones] = next_q_v.squeeze(-1)
+            refs_q_v = rewards + tgt_q * GAMMA**N_STEPS
+        else:
+            refs_q_v = rewards
 
-                tgt_q_v[not_dones] = last_vals_v.squeeze(-1)
-
-                #bellman equation
-                ref_q_v = rewards + tgt_q_v * (GAMMA**N_STEPS)
-            else:
-                ref_q_v = rewards
-
+        #training steps
         optimizer.zero_grad()
 
-        logits_v, values = net(states)
+        logits, values = net(states)
+        values = values.squeeze(-1)
+        value_loss = F.mse_loss(values, refs_q_v)
         
-        #mse for value network
-        loss_value_v = F.mse_loss(values.squeeze(-1), ref_q_v)
-        #policy gradient
-        log_prob_v = F.log_softmax(logits_v, dim=1)
-        adv_v = ref_q_v - values.detach()
-        log_p_a = log_prob_v[range(batch_len), actions]
-        log_prob_act_v = adv_v * log_p_a
-        loss_policy_v = -log_prob_act_v.mean() 
+        adv_v = refs_q_v - values.detach()
+        log_probs = F.log_softmax(logits, dim=1)     
+        log_prob_a = log_probs[range(batch_len), actions]
+        policy_loss = -(log_prob_a * adv_v).mean()
 
-        #entropy (goal: maximizing the entropy)
-        prob_v = F.softmax(logits_v, dim=1)
-                
-        ent = (prob_v * log_prob_v).sum(dim=1).mean()
-        entropy_loss_v = -BETA_ENTROPY * ent 
+        probs = F.softmax(logits, dim=1)
+        entropy_loss = (probs*log_probs).sum(dim=1).mean()
+        entropy_loss = BETA_ENTROPY * entropy_loss
 
-        #code to keep track of maximum gradient (careful, if backpropagation is done here then the loss must be changed accordingly)
-        writer.add_scalar("entropy", entropy_loss_v, idx)
-        writer.add_scalar("policy_loss", loss_policy_v, idx)
-        writer.add_scalar("value_loss", loss_value_v, idx)
-
-        loss_v = 0.1* loss_policy_v + loss_value_v
-        loss_v.backward()
-
-        nn_utils.clip_grad_norm_(net.parameters(), CLIP_GRAD)
+        #policy_loss.backward(retain_graph=True)
         
+        '''grad_mean, grad_max = extentions.calc_grad(net)
+        writer.add_scalar("mean_grad", grad_mean, idx)
+        writer.add_scalar("max_grad", grad_max, idx)'''
+    
+        loss = value_loss + policy_loss + entropy_loss
+        loss.backward()
+
+        #nn_utils.clip_grad_norm_(net.parameters(), CLIP_GRAD)
         optimizer.step()
+
+        '''writer.add_scalar("entropy", entropy_loss, idx)
+        writer.add_scalar("policy_loss", policy_loss, idx)
+        writer.add_scalar("value_loss", value_loss, idx)'''
+
+        if idx % 100 == 0:
+            print("value_loss", value_loss.item())
+        if idx+1 % 15000 == 0:
+            backup.save(parameters)
+            backup.mkrender(fps=160.0, frametreshold=4000)
+        
+
+        
