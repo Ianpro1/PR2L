@@ -152,7 +152,7 @@ if __name__ == "__main__":
     net.apply(models.network_reset)
 
 
-    net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_002/state_dicts/2023-03-06/save-00-06.pt"))
+    net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_002/state_dicts/2023-03-06/save-00-40.pt"))
     writer = SummaryWriter()
     render_agent = agent.PolicyAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)
