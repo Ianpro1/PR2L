@@ -21,9 +21,9 @@ parameters = {
 "CLIP_GRAD":0.5,
 "PROCESS_COUNT": 4,
 "eps": 1e-3,
-"MINIBATCH_SIZE":32,
-"NUM_ENVS": 8,
-"solved":20
+"MINIBATCH_SIZE":36,
+"NUM_ENVS": 12,
+"solved":400
 }
 
 GAMMA = parameters.get("GAMMA", 0.99)
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     mp.set_start_method("spawn")
     exp_queue = mp.Queue(maxsize=parameters["PROCESS_COUNT"])
 
-    if True:
+    if False:
         inconn, outconn = mp.Pipe()
         display = mp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
         display.start()
@@ -151,6 +151,8 @@ if __name__ == "__main__":
     print(net)
     net.apply(models.network_reset)
 
+
+    net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_002/state_dicts/2023-03-06/save-00-06.pt"))
     writer = SummaryWriter()
     render_agent = agent.PolicyAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)
