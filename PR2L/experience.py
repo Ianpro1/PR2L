@@ -275,7 +275,7 @@ class ExperienceSourceV2:
             self.tot_steps.clear()
         return res  
     
-
+#TODO MemorizedExperienceSource (experience store any extra item that is given from the agent)
 #TODO HeldExperienceSource (holds terminated environments until all are finished)
 #TODO EpisodeSource
 #TODO SyncExperienceSource

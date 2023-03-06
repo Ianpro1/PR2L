@@ -12,14 +12,13 @@ from common import models, extentions
 from common.performance import FPScounter
 
 parameters = {
-"ENV_NAME":"PongNoFrameskip-v4",
+"ENV_NAME":"BreakoutNoFrameskip-v4",
 "BETA_ENTROPY": 0.01,
-"BETA_POLICY": 0.5,
+"BETA_POLICY": 1.0,
 "N_STEPS": 4,
 "GAMMA":0.99,
 "LEARNING_RATE":0.001,
-"CLIP_GRAD":0.1,
-"device":"cuda",
+"CLIP_GRAD":0.5,
 "PROCESS_COUNT": 4,
 "eps": 1e-3,
 "MINIBATCH_SIZE":32,
@@ -32,7 +31,7 @@ N_STEPS = parameters.get("N_STEPS", 4)
 CLIP_GRAD = parameters["CLIP_GRAD"]
 BETA_POLICY = parameters["BETA_POLICY"]
 BETA_ENTROPY = parameters["BETA_ENTROPY"]
-device = parameters["device"]
+device = "cuda" if torch.cuda.is_available() else "cpu"
 preprocessor = agent.numpytoFloatTensor_preprossesing
 
 class SingleChannelWrapper(gym.ObservationWrapper):
@@ -75,6 +74,7 @@ def play_env(env_number, net, queue, minibatch_size, device="cpu", inconn=None):
     
     for exp in exp_source:
         fpscount.step()
+        
         minibatch.append(exp)
 
         if len(minibatch) >= minibatch_size:
@@ -160,7 +160,10 @@ if __name__ == "__main__":
     mean_r = 0
     
     for idx, batch in enumerate(buffer):
-        
+        if idx % 10000 == 0:
+            backup.save(parameters)
+            backup.mkrender(fps=140.0, frametreshold=5000)
+
         for rewards, steps in buffer.pop_rewards_steps():
             mean_rewards.append(rewards)
             mean_r = np.asarray(mean_rewards).mean()
@@ -168,7 +171,7 @@ if __name__ == "__main__":
 
         if mean_r > solved:
             backup.save(parameters)
-            backup.mkrender(fps=160.0, frametreshold=4000)
+            backup.mkrender(fps=140.0, frametreshold=5000)
         
         batch_len = len(batch)
         
@@ -184,7 +187,7 @@ if __name__ == "__main__":
                 next_q_v = net(last_states)[1]
 
             tgt_q[not_dones] = next_q_v.squeeze(-1)
-            refs_q_v = rewards + tgt_q * GAMMA**N_STEPS
+            refs_q_v = rewards + tgt_q * (GAMMA**N_STEPS)
         else:
             refs_q_v = rewards
 
@@ -199,9 +202,9 @@ if __name__ == "__main__":
         log_probs = F.log_softmax(logits, dim=1)     
         log_prob_a = log_probs[range(batch_len), actions]
         policy_loss = -(log_prob_a * adv_v).mean()
-
+        
         probs = F.softmax(logits, dim=1)
-        entropy_loss = (probs*log_probs).sum(dim=1).mean()
+        entropy_loss = (probs * log_probs).sum(dim=1).mean()
         entropy_loss = BETA_ENTROPY * entropy_loss
 
         #policy_loss.backward(retain_graph=True)
@@ -213,7 +216,7 @@ if __name__ == "__main__":
         loss = value_loss + policy_loss + entropy_loss
         loss.backward()
 
-        #nn_utils.clip_grad_norm_(net.parameters(), CLIP_GRAD)
+        nn_utils.clip_grad_norm_(net.parameters(), CLIP_GRAD)
         optimizer.step()
 
         '''writer.add_scalar("entropy", entropy_loss, idx)
@@ -222,9 +225,4 @@ if __name__ == "__main__":
 
         if idx % 100 == 0:
             print("value_loss", value_loss.item())
-        if idx+1 % 15000 == 0:
-            backup.save(parameters)
-            backup.mkrender(fps=160.0, frametreshold=4000)
-        
-
         
