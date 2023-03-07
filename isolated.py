@@ -8,31 +8,30 @@ import PR2L.agent as agnt
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 import torch.multiprocessing as mp
 
-class SinglyConnected(nn.Module):
-    def __init__(self, feature_size, bias=True, alpha=0.1):
+
+
+
+#TODO bring back the SinglyConnected layer
+class BiasedFilter(nn.Module):
+    def __init__(self, feature_size, alpha=0.016):
         super().__init__()
-        self.alpha = alpha
+        self.alphav = alpha
         self.feature_size = feature_size
-        w = nn.Parameter(torch.empty(size=feature_size))
-        self.register_parameter('weight', w)
-        if bias:
-            b = nn.Parameter(torch.empty(size=feature_size))
-            self.register_parameter('bias', b)
-        else:
-            self.register_parameter('bias', None)
-            self.bias = None
+        b = nn.Parameter(torch.empty(size=feature_size))
+        self.register_parameter('bias', b)
+        self.register_buffer("b_noise", torch.zeros_like(b))
+    
         self.reset_parameters()
 
     def forward(self, x):
-        if self.bias is None:
-            return x * self.weight
-        return x * self.weight + self.bias
-    
-    def reset_parameters(self):
-        nn.init.uniform_(self.weight, 1.-self.alpha, 1.+self.alpha)
-        if self.bias is not None:
-            nn.init.uniform_(self.bias, -self.alpha, self.alpha)
+        self.b_noise.uniform_()
+        return x + self.bias * self.b_noise 
 
+    def reset_parameters(self):
+        print(self.alphav) #True?
+        nn.init.uniform_(self.bias, a=0., b=self.alphav)
+        print(self.bias)
+        raise memoryview
 
 
 class SingleChannelWrapper(gym.ObservationWrapper):
@@ -58,7 +57,7 @@ def make_env(ENV_ID, inconn=None, render=False):
 import time
 
 if __name__ == "__main__":
-    net = SinglyConnected((84,84), True)
+    net = BiasedFilter((84,84), True)
     env = make_env("BreakoutNoFrameskip-v4")
     inconn, outconn = mp.Pipe()
 
@@ -71,7 +70,7 @@ if __name__ == "__main__":
     
     done = True
     optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
-
+    
     time.sleep(3)
     while True:
         
@@ -87,6 +86,7 @@ if __name__ == "__main__":
         loss = nn.functional.mse_loss(out, obs)
         loss.backward()
         print(loss)
+        
         optimizer.step()
         optimizer.zero_grad()
         
@@ -95,10 +95,6 @@ if __name__ == "__main__":
         img = np.concatenate((obs.numpy(), out.detach().numpy()), axis=2)
         
         inconn.send(img)
-
-        
-
-        
-        
+             
 
     
