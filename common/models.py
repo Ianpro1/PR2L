@@ -253,6 +253,52 @@ class LinearA2C(nn.Module):
         return act_v, value
 
 
+class BiasedFilter(nn.Module):
+    def __init__(self, feature_size, alpha=0.16):
+        super().__init__()
+        self.alpha = alpha
+        self.feature_size = feature_size
+        b = nn.Parameter(torch.empty(size=feature_size))
+        self.register_parameter('bias', b)
+        self.register_buffer("b_noise", torch.zeros_like(b))
+    
+        self.reset_parameters()
+
+    def forward(self, x):
+        self.b_noise.uniform_()
+        return x + self.bias * self.b_noise 
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.bias, a=0., b=self.alpha)
+
+
+class SinglyConnected(nn.Module):
+    def __init__(self, feature_size, alpha=0.16, bias=True, bias_ratio=1/20):
+        super().__init__()
+        self.b_percent = bias_ratio
+        self.alpha = alpha
+        w = nn.Parameter(torch.empty(size=feature_size, dtype=torch.float32))
+        self.register_parameter('weight', w)
+        if bias:
+            b = nn.Parameter(torch.empty(size=feature_size, dtype=torch.float32))
+            self.register_parameter('bias', b)
+        else:
+            self.register_parameter('bias', None)
+
+        self.reset_parameters()
+
+    def forward(self, x):
+        if self.bias is None:
+            return x * self.weight
+        return x * self.weight+ self.bias
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.weight, a=1.0-self.alpha, b=1.0+self.alpha)
+
+        if self.bias is not None:
+            nn.init.uniform_(self.bias, a=-self.alpha * self.b_percent, b=self.alpha * self.b_percent)
+    
+
 def network_reset(layer):
     #useful for disapearing parameters in multiprocessing cases where a cuda network is shared across processes
     #example: net.apply(network_reset)
@@ -287,22 +333,3 @@ class deepprint(nn.Module):
     @staticmethod
     def rainbow(x):
         return [x.max().item(), x.mean().item(), x.min().item()]
-    
-
-class BiasedFilter(nn.Module):
-    def __init__(self, feature_size, alpha=0.016):
-        super().__init__()
-        self.alpha = alpha
-        self.feature_size = feature_size
-        b = nn.Parameter(torch.empty(size=feature_size))
-        self.register_parameter('bias', b)
-        self.register_buffer("b_noise", torch.zeros_like(b))
-    
-        self.reset_parameters()
-
-    def forward(self, x):
-        self.b_noise.uniform_()
-        return x + self.bias * self.b_noise 
-
-    def reset_parameters(self):
-        nn.init.uniform_(self.bias, -self.alpha, self.alpha)

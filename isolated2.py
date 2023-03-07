@@ -1,11 +1,13 @@
-from common import playground, models, extentions
+import matplotlib.pyplot as plt
 import numpy as np
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
-from PR2L import agent, experience, utilities
-import os
-import gym
-import PR2L.playground as play
-import timeit
-from collections import namedtuple, deque
+from collections import deque
+
+
+
+for i in range(1000):
+    x = np.random.randint(0, 1000+i*1000)
+    y = np.random.randint(0, 1000+i*1000)
+    plt.scatter(x, y)
+    plt.pause(0.000001)
+
+plt.show()
