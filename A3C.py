@@ -123,7 +123,7 @@ if __name__ == "__main__":
     mp.set_start_method("spawn")
     exp_queue = mp.Queue(maxsize=parameters["PROCESS_COUNT"])
 
-    if False:
+    if True:
         inconn, outconn = mp.Pipe()
         display = mp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
         display.start()
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     net.apply(models.network_reset)
 
 
-    net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_002/state_dicts/2023-03-06/save-00-40.pt"))
+    net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_002/state_dicts/2023-03-06/save-14-30.pt"))
     writer = SummaryWriter()
     render_agent = agent.PolicyAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)

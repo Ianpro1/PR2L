@@ -289,3 +289,28 @@ class deepprint(nn.Module):
         return [x.max().item(), x.mean().item(), x.min().item()]
     
 
+
+class SinglyConnected(nn.Module):
+    def __init__(self, feature_size, bias=True, alpha=0.17):
+        super().__init__()
+        self.alpha = alpha
+        self.feature_size = feature_size
+        w = nn.Parameter(torch.empty(size=feature_size))
+        self.register_parameter('weight', w)
+        if bias:
+            b = nn.Parameter(torch.empty(size=feature_size))
+            self.register_parameter('bias', b)
+        else:
+            self.register_parameter('bias', None)
+            self.bias = None
+        self.reset_parameters()
+
+    def forward(self, x):
+        if self.bias is None:
+            return x * self.weight
+        return x * self.weight + self.bias
+    
+    def reset_parameters(self):
+        nn.init.uniform_(self.weight, 1.-self.alpha, 1.+self.alpha)
+        if self.bias is not None:
+            nn.init.uniform_(self.bias, -self.alpha, self.alpha)
