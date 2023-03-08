@@ -1,9 +1,3 @@
-PongNoFrameskip-v4
 runs
 DataFrames
-BreakoutNoFrameskip-v4
-AlienNoFrameskip-v4
-MsPacmanNoFrameskip-v4
-BattleZoneNoFrameskip-v4
-FreewayNoFrameskip-v4
-ptan_copy
+model_saves
