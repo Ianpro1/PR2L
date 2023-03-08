@@ -1,7 +1,7 @@
+#rendering contains classes for live-rendering of the agent and tools for neural network analysis (not yet implemented)
 import pygame
 import numpy as np
 from gym import Wrapper
-
 
 
 class SendimgWrapper(Wrapper):
@@ -25,12 +25,9 @@ class SendimgWrapper(Wrapper):
         self.inconn.send(obs)
         return obs, info
 
-
-
 def ChannelFirstPreprocessing(img):
     img = (img.transpose(2,1,0) * 255.).astype(np.uint8)
     return img
-
 
 def init_display(outconn, screen_size, preprocessing=None):
     #default img format is rgb_array as Height, Width and Channels 

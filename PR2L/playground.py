@@ -1,3 +1,4 @@
+#playground provides Dummy environments and tools for testing basic algorithms 
 import gym
 import numpy as np
 
@@ -61,13 +62,12 @@ class OldDummyWrapper(Dummy):
         obs, _ = self.env.reset()
         return obs
     
-
 class EpisodeLength:
     #ends episode after n-1 steps (the nth step returns done)
     def __init__(self, length):
         self.len = length
         self.count = 0
-    def __call__(self, y, done):
+    def __call__(self, y, x):
         if self.count > self.len -2:
             self.count = 0
             return True

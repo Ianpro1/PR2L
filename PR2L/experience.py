@@ -1,3 +1,4 @@
+#experience contains a variety of classes to gather and store the PR2L.agent.Agent experiences
 import gym
 from collections import namedtuple, deque
 from .agent import Agent

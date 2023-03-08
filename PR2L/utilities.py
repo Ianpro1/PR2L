@@ -1,3 +1,5 @@
+#utilities includes basic extentions for other libraries (including PR2L)
+#listed libraries: Pytorch, gym
 import torch
 import datetime
 import os
@@ -45,6 +47,7 @@ def unpack_memorizedbatch(batch):
         else:
             not_dones.append(False)   
     return states, actions, rewards, last_states, not_dones, memories
+
 
 #backup
 class render_env(Wrapper):

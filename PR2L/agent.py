@@ -1,3 +1,4 @@
+#agent includes reinforcement learning agents as well as simple action selectors
 import torch
 import torch.nn.functional as F
 import numpy as np
