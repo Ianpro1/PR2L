@@ -1,3 +1,0 @@
-{'ENV_NAME': 'PongNoFrameskip-v4', 'complete': True, 'LEARNING_RATE': 0.0001, 'GAMMA': 0.99, 'N_STEPS': 4, 'TGT_NET_SYNC': 300, 'BATCH_SIZE': 32, 'REPLAY_SIZE': 20000, 'Noisy': True}
-
-Note: bellman equation wrongly computed: q_v = r + tgt_q * GAMMA
