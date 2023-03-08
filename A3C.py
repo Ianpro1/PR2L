@@ -153,7 +153,7 @@ if __name__ == "__main__":
     net.apply(models.network_reset)
 
 
-    net.load_state_dict(torch.load("model_saves/BattleZoneNoFrameskip-v4/model_001/state_dicts/2023-03-08/save-00-05.pt"))
+    net.load_state_dict(torch.load("model_saves/BattleZoneNoFrameskip-v4/model_001/state_dicts/2023-03-08/save-12-15.pt"))
     writer = SummaryWriter()
     render_agent = agent.PolicyAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)
@@ -163,9 +163,9 @@ if __name__ == "__main__":
     mean_r = 0
     
     for idx, batch in enumerate(buffer):
-        if idx % 30000 == 0:
-            if idx > 1:
-                backup.save(parameters)
+        if idx % 200 == 0:
+            if idx > 1000:
+                #backup.save(parameters)
                 backup.mkrender(fps=120.0, frametreshold=5000)
 
         for rewards, steps in buffer.pop_rewards_steps():
