@@ -11,8 +11,10 @@ from collections import namedtuple, deque
 from common import models, extentions
 from common.performance import FPScounter
 
+#MsPacman needs colors or higher resolution
+
 parameters = {
-"ENV_NAME":"BreakoutNoFrameskip-v4",
+"ENV_NAME":"BattleZoneNoFrameskip-v4",
 "BETA_ENTROPY": 0.01,
 "BETA_POLICY": 1.0,
 "N_STEPS": 4,
@@ -21,9 +23,9 @@ parameters = {
 "CLIP_GRAD":0.5,
 "PROCESS_COUNT": 4,
 "eps": 1e-3,
-"MINIBATCH_SIZE":36,
-"NUM_ENVS": 12,
-"solved":400
+"MINIBATCH_SIZE":32,
+"NUM_ENVS": 8,
+"solved":30000
 }
 
 GAMMA = parameters.get("GAMMA", 0.99)
@@ -37,7 +39,7 @@ preprocessor = agent.numpytoFloatTensor_preprossesing
 class SingleChannelWrapper(gym.ObservationWrapper):
     def observation(self, observation):
         return np.array([observation])
-    
+
 def make_env(ENV_ID, inconn=None, render=False):
     
     if render:
@@ -46,11 +48,14 @@ def make_env(ENV_ID, inconn=None, render=False):
     else:
         env = gym.make(ENV_ID)
         if inconn is not None:
-                env = rendering.SendimgWrapper(env, inconn, frame_skip=12)
+            env = rendering.SendimgWrapper(env, inconn, frame_skip=6)
+
     env = AtariPreprocessing(env)
     env = common_wrappers.RGBtoFLOAT(env)
-    env = common_wrappers.BetaSumBufferWrapper(env, 3, 0.4)
+    #env = common_wrappers.BetaSumBufferWrapper(env, 3, 0.4)
     env = SingleChannelWrapper(env)
+    '''if inconn is not None:
+            env = rendering.SendimgWrapper(env, inconn, frame_skip=6)'''
     return env
 
 def make_envlist(number, ENV_ID, inconn=None):
@@ -125,12 +130,12 @@ if __name__ == "__main__":
 
     if True:
         inconn, outconn = mp.Pipe()
-        display = mp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
+        display = mp.Process(target=rendering.init_display, args=(outconn, (840, 640)))
         display.start()
     else:
         inconn = None
 
-    net = models.A2C((1,84,84), 4).to(device)
+    net = models.A2C((1,84,84), 8).to(device)
     net.share_memory()
 
     processes = []
@@ -152,19 +157,20 @@ if __name__ == "__main__":
     net.apply(models.network_reset)
 
 
-    net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_002/state_dicts/2023-03-06/save-14-30.pt"))
+    net.load_state_dict(torch.load("model_saves/BattleZoneNoFrameskip-v4/model_001/state_dicts/2023-03-07/save-23-21.pt"))
     writer = SummaryWriter()
     render_agent = agent.PolicyAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)
-    backup = utilities.ModelBackup(parameters["ENV_NAME"], "002", net, render_env=render_env, agent=render_agent)
+    backup = utilities.ModelBackup(parameters["ENV_NAME"], "001", net, render_env=render_env, agent=render_agent)
     
     solved = parameters["solved"]
     mean_r = 0
     
     for idx, batch in enumerate(buffer):
         if idx % 30000 == 0:
-            backup.save(parameters)
-            backup.mkrender(fps=120.0, frametreshold=5000)
+            if idx > 1:
+                backup.save(parameters)
+                backup.mkrender(fps=120.0, frametreshold=5000)
 
         for rewards, steps in buffer.pop_rewards_steps():
             mean_rewards.append(rewards)
@@ -174,6 +180,7 @@ if __name__ == "__main__":
         if mean_r > solved:
             backup.save(parameters)
             backup.mkrender(fps=140.0, frametreshold=5000)
+            break
         
         batch_len = len(batch)
         

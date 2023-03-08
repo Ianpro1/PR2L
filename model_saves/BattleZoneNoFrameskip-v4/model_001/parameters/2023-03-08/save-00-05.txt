@@ -1,0 +1,1 @@
+{'ENV_NAME': 'BattleZoneNoFrameskip-v4', 'BETA_ENTROPY': 0.01, 'BETA_POLICY': 1.0, 'N_STEPS': 4, 'GAMMA': 0.99, 'LEARNING_RATE': 0.001, 'CLIP_GRAD': 0.5, 'PROCESS_COUNT': 4, 'eps': 0.001, 'MINIBATCH_SIZE': 32, 'NUM_ENVS': 8, 'solved': 30000}

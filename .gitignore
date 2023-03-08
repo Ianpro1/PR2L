@@ -2,4 +2,6 @@ PongNoFrameskip-v4
 runs
 DataFrames
 BreakoutNoFrameskip-v4
+AlienNoFrameskip-v4
+MsPacmanNoFrameskip-v4
 ptan_copy

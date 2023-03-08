@@ -255,7 +255,7 @@ class LinearA2C(nn.Module):
 def network_reset(layer):
     #useful for disapearing parameters in multiprocessing cases where a cuda network is shared across processes
     #example: net.apply(network_reset)
-        if isinstance(layer, (nn.Linear, nn.Conv2d, nn.BatchNorm2d, nn.BatchNorm1d)):
+        if isinstance(layer, (nn.Linear, nn.Conv2d, nn.BatchNorm2d, nn.BatchNorm1d, NoisyLinear)):
             layer.reset_parameters()
 
 

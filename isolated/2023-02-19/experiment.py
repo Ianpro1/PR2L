@@ -1,118 +1,77 @@
-import numpy as np
-import torch.nn as nn
+import torch.nn as nn 
 import torch
+from PR2L import agent
+import numpy as np
+import torch.nn.functional as F
 
-def p(x):
-    return torch.FloatTensor(np.array(x, copy=False))
-
-class Netw(nn.Module):
-    def __init__(self, device="cpu", preprocessor=p):
+class BiasedFilter(nn.Module):
+    def __init__(self, feature_size, alpha=0.0016):
         super().__init__()
-        self.prep = preprocessor
-        self.lin = nn.Sequential(
-            nn.Linear(2,1),
-        )
+        self.alpha = alpha
+        self.feature_size = feature_size
+        b = nn.Parameter(torch.empty(size=feature_size))
+        self.register_parameter('bias', b)
+        self.register_buffer("b_noise", torch.zeros_like(b))
+    
+        self.reset_parameters()
+
+    def forward(self, x):
+        self.b_noise.uniform_()
+        return x + self.bias * self.b_noise 
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.bias, a=0., b=self.alpha)
+
+#no use found for this layer
+class SinglyConnected(nn.Module):
+    def __init__(self, feature_size, alpha=0.16, bias=True, bias_ratio=1/20):
+        super().__init__()
+        self.b_percent = bias_ratio
+        self.alpha = alpha
+        w = nn.Parameter(torch.empty(size=feature_size, dtype=torch.float32))
+        self.register_parameter('weight', w)
+        if bias:
+            b = nn.Parameter(torch.empty(size=feature_size, dtype=torch.float32))
+            self.register_parameter('bias', b)
+        else:
+            self.register_parameter('bias', None)
+
+        self.reset_parameters()
+
+    def forward(self, x):
+        if self.bias is None:
+            return x * self.weight
+        return x * self.weight+ self.bias
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.weight, a=1.0-self.alpha, b=1.0+self.alpha)
+
+        if self.bias is not None:
+            nn.init.uniform_(self.bias, a=-self.alpha * self.b_percent, b=self.alpha * self.b_percent)
+    
+class FilterAgent(agent.Agent):
+    def __init__(self,filter, net, device="cpu", Selector= agent.ProbabilitySelector(), preprocessing=agent.numpytoFloatTensor_preprossesing, inconn=None):
+        super().__init__()
+        assert isinstance(Selector, agent.ActionSelector)
+        if inconn is not None:
+            self.inconn = inconn
+        self.selector = Selector
+        self.net = net
+        self.filter = filter
         self.device = device
+        self.preprocessing = preprocessing
 
+    @torch.no_grad()
     def __call__(self, x):
-        return self.lin(x)
-
-device = "cpu"
-
-net = Netw(device)
-print(net)
-net.to(device)
-optimizer = torch.optim.SGD(net.parameters(), lr=1e-2)
-
-class RegressionTask:
-    def __init__(self, slope, bias, noise_beta):
-        assert isinstance(noise_beta, float)
-        self.bnoise = noise_beta
-        self.slope = slope
-        self.bias = bias
-        
-    def get(self, batch_size, x_lim, x_count):
-        noise = (np.random.random(size=(batch_size, x_count)) - 0.5) * self.bnoise
-        xs = np.random.randint(-x_lim, x_lim, size=(batch_size,x_count))
-        target_v  = xs * self.slope + self.bias + noise
-
-        return xs.astype(np.float32), target_v.astype(np.float32)
-
-
-
-'''slope = 0.356
-bias = 345.
-noise = 14.
-batch = 100
-xrange = 1000
-n_sample = 1
-
-reg = RegressionTask(slope, bias, noise)
-
-x, y = reg.get(batch, xrange, n_sample)
-
-scaling_factor = xrange * slope + bias
-
-for x in range(10000):
-
-    x, y = reg.get(batch, xrange, n_sample)
-    x /= scaling_factor
-    y /= scaling_factor
-
-    optimizer.zero_grad()
-    x = p(x).to(device)
-    y = p(y).to(device)
-    pred = net(x)
-    losses = (y - pred)**2
-    loss = losses.mean()
-    loss.backward()
-    optimizer.step()
-    print(loss)
-'''
-
-
-class SubstrationTask:
-    def __init__(self):
-        self.buffer = None
-    def get(self, batch_size):
-        input_v = np.random.random(size=(batch_size,2))
-
-        target_v = input_v[:, 0] + input_v[:, 1]
-        return input_v, target_v
+        x1 = self.preprocessing(x)
+        x = self.filter(x1.to(self.device))
+        if self.inconn is not None:
+            img = np.concatenate((x.cpu().numpy()[0], x1.cpu().numpy()[0]), axis=2)
+            self.inconn.send(img)
+        act_v = self.net(x)[0]
+        act_v = F.softmax(act_v, dim=1)
+        actions = self.selector(act_v.cpu().numpy())
+        noise = self.filter.b_noise.cpu().numpy()
+        return actions, [[noise]] * actions.shape[0]
     
-    def create_buffer(self, size):
-        self.buffer = self.get(batch_size=size)
-    
-    def sample(self, size):
-        
-        idx = np.random.randint(0, len(self.buffer[0]) - 1, size)
-        return self.buffer[0][idx], self.buffer[1][idx]
 
-
-
-device = "cpu"
-
-env = SubstrationTask()
-env.create_buffer(1000)
-print(env.sample(10))
-
-lin = nn.Linear(2, 1)
-optimizer = torch.optim.SGD(lin.parameters(), lr=1e-3)
-lin.to(device)
-idx = 0
-
-
-for x in range(10000):
-    optimizer.zero_grad()
-    x, y = env.sample(4)
-    x = p(x).to(device)
-    y = p(y).to(device)
-    pred = lin(x)
-    losses = (y - pred)**2
-    loss = losses.mean()
-    loss.backward()
-    optimizer.step()
-    print(loss)
-
-
-print([x for x in lin.parameters()])

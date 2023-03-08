@@ -20,7 +20,7 @@ from gym.wrappers.atari_preprocessing import AtariPreprocessing
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
-    "ENV_NAME":"BreakoutNoFrameskip-v4",
+    "ENV_NAME":"TennisNoFrameskip-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
@@ -30,7 +30,7 @@ parameters = {
     "REPLAY_SIZE":10000,
     "Noisy": True,
     "CLIP_GRAD":0.1,
-    "SOLVED":300,
+    "SOLVED":1600,
     "device": "cuda"
 }
 
@@ -54,7 +54,7 @@ def make_env(ENV_NAME, inconn=None, render=False):
         env = common_wrappers.BetaSumBufferWrapper(env, 3, 0.4)
         env = SingleChannelWrapper(env)
         #specific to atariBreakout
-        env = common_wrappers.PenalizedLossWrapper(env)
+        #env = common_wrappers.PenalizedLossWrapper(env)
         return env
 
 def play_func(parameters, net, exp_queue, device, inconn=None):
@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
     #init display
     inconn, outconn = tmp.Pipe()
-    p1 = tmp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
+    p1 = tmp.Process(target=rendering.init_display, args=(outconn, (840, 640)))
     p1.start()
     
     #multiprocessing for training
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     
     #specific for atari
     obs_shape = (1, 84, 84)
-    n_actions = 4
+    n_actions = 8
     
     net = models.NoisyDualDQN(obs_shape, n_actions).to(device)
     net.share_memory()
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     tgt_net = agent.TargetNet(net)
     render_agent = agent.BasicAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)
-    backup = utilities.ModelBackup(parameters['ENV_NAME'],"002", net, render_env=render_env, agent=render_agent)
+    backup = utilities.ModelBackup(parameters['ENV_NAME'],"001", net, render_env=render_env, agent=render_agent)
     writer = SummaryWriter(comment=parameters['ENV_NAME'] +"_--" + device)  
     
     exp_queue = tmp.Queue(maxsize=Batch_MUL*2)
