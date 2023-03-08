@@ -163,7 +163,7 @@ if __name__ == "__main__":
     mean_r = 0
     
     for idx, batch in enumerate(buffer):
-        if idx % 200 == 0:
+        if idx % 20000 == 0:
             if idx > 1000:
                 #backup.save(parameters)
                 backup.mkrender(fps=120.0, frametreshold=5000)
