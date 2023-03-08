@@ -1,6 +1,5 @@
-# PR2L
-This is a repository for a Reinforcement Learning Library called Pytorch Reinforcement Learning Library (PR2L)
+# PR2L (python/pytorch reinforcement learning library)
+This is a repository for a Reinforcement Learning Library called PR2L
 
-//A3C agent playing Atari BattleZone//
 <img src="https://github.com/Ianpro1/RL-agents/blob/master/BattleZone.gif" width="400">
-                     
+A3C agent playing Atari BattleZone
