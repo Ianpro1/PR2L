@@ -1,3 +1,5 @@
+#This A3C model is used to test noise and gradient flow
+
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
@@ -5,11 +7,86 @@ import torch.nn.utils as nn_utils
 from PR2L import agent, utilities, rendering, common_wrappers, experience
 import torch.multiprocessing as mp
 import numpy as np
+import torch.nn as nn
 import gym
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 from collections import namedtuple, deque
 from common import models, extentions
 from common.performance import FPScounter
+import time
+
+#doesn't work with adv_v (seems like the avg adv_v is moving too fast for this to work)
+#TODO try to use with value estimation, try to place noise in gradient instead of on input
+class BiasedFilter(nn.Module):
+    def __init__(self, feature_size, alpha=0.0016):
+        super().__init__()
+        self.alpha = alpha
+        self.feature_size = feature_size
+        b = nn.Parameter(torch.empty(size=feature_size))
+        self.register_parameter('bias', b)
+        self.register_buffer("b_noise", torch.zeros_like(b))
+    
+        self.reset_parameters()
+
+    def forward(self, x):
+        self.b_noise.uniform_()
+        return x + self.bias * self.b_noise 
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.bias, a=0., b=self.alpha)
+
+#no use found for this layer
+class SinglyConnected(nn.Module):
+    def __init__(self, feature_size, alpha=0.16, bias=True, bias_ratio=1/20):
+        super().__init__()
+        self.b_percent = bias_ratio
+        self.alpha = alpha
+        w = nn.Parameter(torch.empty(size=feature_size, dtype=torch.float32))
+        self.register_parameter('weight', w)
+        if bias:
+            b = nn.Parameter(torch.empty(size=feature_size, dtype=torch.float32))
+            self.register_parameter('bias', b)
+        else:
+            self.register_parameter('bias', None)
+
+        self.reset_parameters()
+
+    def forward(self, x):
+        if self.bias is None:
+            return x * self.weight
+        return x * self.weight+ self.bias
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.weight, a=1.0-self.alpha, b=1.0+self.alpha)
+
+        if self.bias is not None:
+            nn.init.uniform_(self.bias, a=-self.alpha * self.b_percent, b=self.alpha * self.b_percent)
+    
+class FilterAgent(agent.Agent):
+    def __init__(self,filter, net, device="cpu", Selector= agent.ProbabilitySelector(), preprocessing=agent.numpytoFloatTensor_preprossesing, inconn=None):
+        super().__init__()
+        assert isinstance(Selector, agent.ActionSelector)
+        if inconn is not None:
+            self.inconn = inconn
+        self.selector = Selector
+        self.net = net
+        self.filter = filter
+        self.device = device
+        self.preprocessing = preprocessing
+
+    @torch.no_grad()
+    def __call__(self, x):
+        x1 = self.preprocessing(x)
+        x = self.filter(x1.to(self.device))
+        if self.inconn is not None:
+            img = np.concatenate((x.cpu().numpy()[0], x1.cpu().numpy()[0]), axis=2)
+            self.inconn.send(img)
+        act_v = self.net(x)[0]
+        act_v = F.softmax(act_v, dim=1)
+        actions = self.selector(act_v.cpu().numpy())
+        noise = self.filter.b_noise.cpu().numpy()
+        return actions, [[noise]] * actions.shape[0]
+
 
 parameters = {
 "ENV_NAME":"BreakoutNoFrameskip-v4",
@@ -19,10 +96,10 @@ parameters = {
 "GAMMA":0.99,
 "LEARNING_RATE":0.001,
 "CLIP_GRAD":0.5,
-"PROCESS_COUNT": 4,
+"PROCESS_COUNT": 1,
 "eps": 1e-3,
-"MINIBATCH_SIZE":36,
-"NUM_ENVS": 12,
+"MINIBATCH_SIZE":32,
+"NUM_ENVS": 8,
 "solved":400
 }
 
@@ -62,12 +139,13 @@ def make_envlist(number, ENV_ID, inconn=None):
 
 
 EpisodeEnd = namedtuple("EpisodeEnd", ("rewards", "steps"))
-import time
-def play_env(env_number, net, queue, minibatch_size, device="cpu", inconn=None):
 
-    env = make_envlist(env_number, parameters["ENV_NAME"], inconn)
-    _agent = agent.PolicyAgent(net, device)
-    exp_source = experience.ExperienceSource(env, _agent, n_steps=parameters["N_STEPS"], GAMMA=parameters["GAMMA"])
+def play_env(env_number,filter, net, queue, minibatch_size, device="cpu", inconn=None):
+
+    env = make_envlist(env_number, parameters["ENV_NAME"])
+
+    _agent = FilterAgent(filter, net, device, inconn=inconn)
+    exp_source = experience.MemorizedExperienceSource(env, _agent, n_steps=parameters["N_STEPS"], GAMMA=parameters["GAMMA"])
 
     minibatch = []
     fpscount = FPScounter(10000)
@@ -116,6 +194,7 @@ class BatchGenerator:
             self.rewards.clear()
             self.steps.clear() 
         return res
+    
 
 
 if __name__ == "__main__":
@@ -125,19 +204,23 @@ if __name__ == "__main__":
 
     if True:
         inconn, outconn = mp.Pipe()
-        display = mp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
+        display = mp.Process(target=rendering.init_display, args=(outconn, (336, 672), rendering.ChannelFirstPreprocessing))
         display.start()
     else:
         inconn = None
 
-    net = models.A4C((1,84,84), 4).to(device)
+    net = models.A2C((1,84,84), 4).to(device)
     net.share_memory()
+    netfilter = BiasedFilter((84, 84)).to(device)
+    netfilter.share_memory()
 
     processes = []
-    p1 = mp.Process(target=play_env, args=(parameters["NUM_ENVS"], net, exp_queue, parameters["MINIBATCH_SIZE"], device, inconn))
+
+    p1 = mp.Process(target=play_env, args=(parameters["NUM_ENVS"], netfilter, net, exp_queue, parameters["MINIBATCH_SIZE"], device, inconn))
     processes.append(p1)
+
     for _ in range(parameters["PROCESS_COUNT"]-1):
-        p = mp.Process(target=play_env, args=(parameters["NUM_ENVS"], net, exp_queue, parameters["MINIBATCH_SIZE"], device))
+        p = mp.Process(target=play_env, args=(parameters["NUM_ENVS"], netfilter, net, exp_queue, parameters["MINIBATCH_SIZE"], device))
         processes.append(p)
 
     for p in processes:
@@ -147,24 +230,21 @@ if __name__ == "__main__":
 
     mean_rewards = deque(maxlen=20)
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters["LEARNING_RATE"], eps=parameters["eps"])
-    
+    filter_optimizer = torch.optim.Adam(netfilter.parameters(), lr=0.01)
     print(net)
-    net.apply(models.network_reset)
 
+    net.apply(models.network_reset)
+    netfilter.reset_parameters()
 
     net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_002/state_dicts/2023-03-06/save-14-30.pt"))
     writer = SummaryWriter()
-    render_agent = agent.PolicyAgent(net, device)
-    render_env = make_env(parameters["ENV_NAME"], render=True)
-    backup = utilities.ModelBackup(parameters["ENV_NAME"], "002", net, render_env=render_env, agent=render_agent)
-    
+    backup = utilities.ModelBackup(parameters["ENV_NAME"], "003", net)
     solved = parameters["solved"]
     mean_r = 0
     
     for idx, batch in enumerate(buffer):
-        if idx % 30000 == 0:
-            backup.save(parameters)
-            backup.mkrender(fps=120.0, frametreshold=5000)
+        #if idx % 30000 == 0:
+            #backup.save(parameters)
 
         for rewards, steps in buffer.pop_rewards_steps():
             mean_rewards.append(rewards)
@@ -173,13 +253,17 @@ if __name__ == "__main__":
 
         if mean_r > solved:
             backup.save(parameters)
-            backup.mkrender(fps=140.0, frametreshold=5000)
         
         batch_len = len(batch)
         
-        states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
+        initstates, actions, rewards, last_states, not_dones, memories = utilities.unpack_memorizedbatch(batch)
+
+        initstates = preprocessor(initstates).to(device)
+        memories = preprocessor(memories).to(device)
+
         
-        states = preprocessor(states).to(device)
+
+
         rewards = preprocessor(rewards).to(device)
         actions = torch.LongTensor(np.array(actions, copy=False)).to(device)
         if last_states:
@@ -195,8 +279,10 @@ if __name__ == "__main__":
 
         #training steps
         optimizer.zero_grad()
+        filter_optimizer.zero_grad()
+        states = initstates + netfilter.bias * memories
 
-        logits, values = net(states)
+        logits, values = net(states.detach())
         values = values.squeeze(-1)
         value_loss = F.mse_loss(values, refs_q_v)
         
@@ -214,11 +300,17 @@ if __name__ == "__main__":
         '''grad_mean, grad_max = extentions.calc_grad(net)
         writer.add_scalar("mean_grad", grad_mean, idx)
         writer.add_scalar("max_grad", grad_max, idx)'''
-    
+        print(adv_v.mean())
+        filter_loss = ((states - initstates)**2).mean(dim=(1,2,3))
+        filter_loss = -(filter_loss * adv_v).mean()
+        filter_loss.backward()
+
         loss = value_loss + policy_loss + entropy_loss
         loss.backward()
 
         nn_utils.clip_grad_norm_(net.parameters(), CLIP_GRAD)
+
+        filter_optimizer.step()
         optimizer.step()
 
         '''writer.add_scalar("entropy", entropy_loss, idx)
@@ -227,4 +319,3 @@ if __name__ == "__main__":
 
         if idx % 100 == 0:
             print("value_loss", value_loss.item())
-        

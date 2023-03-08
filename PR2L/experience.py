@@ -185,7 +185,7 @@ class MemorizedExperienceSource:
         _actions = []
         _memories = []
         cur_obs = []
-
+        
         for e in self.env:
             _states.append(deque(maxlen=self.n_steps))
             _rewards.append(deque(maxlen=self.n_steps))
@@ -193,7 +193,7 @@ class MemorizedExperienceSource:
             _memories.append(deque(maxlen=self.n_steps))
             obs, _ = e.reset()
             cur_obs.append(obs)
-
+        
         while True:   
             actions, memories = self.agent(cur_obs)
             

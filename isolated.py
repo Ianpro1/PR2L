@@ -47,6 +47,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
     
     time.sleep(3)
+
     while True:
         
         if done:
@@ -55,9 +56,7 @@ if __name__ == "__main__":
         obs, _, done, _, _ = env.step(np.random.choice(4))
         
         obs = prep(obs)     
-
         out = net(obs)
-
         loss = -nn.functional.mse_loss(out, obs)
         loss.backward()
         print(loss)

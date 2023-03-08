@@ -25,6 +25,26 @@ def unpack_batch(batch):
             not_dones.append(False)   
     return states, actions, rewards, last_states, not_dones
 
+def unpack_memorizedbatch(batch):
+    #Note: last_states batch does not include terminated states (states equal to None)
+    #This function assumes len(last_states) < 1 is handled properly during training
+    states = []
+    rewards = []
+    actions = []
+    last_states = []
+    not_dones = []
+    memories = []
+    for exp in batch:
+        states.append(exp.state)
+        rewards.append(exp.reward)
+        actions.append(exp.action)
+        memories.append(exp.memory)
+        if exp.next is not None:
+            not_dones.append(True)
+            last_states.append(exp.next) 
+        else:
+            not_dones.append(False)   
+    return states, actions, rewards, last_states, not_dones, memories
 
 #backup
 class render_env(Wrapper):
