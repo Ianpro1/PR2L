@@ -2,13 +2,13 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 import torch.nn.utils as nn_utils
-from PR2L import agent, utilities, rendering, common_wrappers, experience
+from PR2L import agent, utilities, rendering, experience
 import torch.multiprocessing as mp
 import numpy as np
 import gym
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 from collections import namedtuple, deque
-from common import models, extentions
+from common import common_wrappers, models, extentions
 from common.performance import FPScounter
 import os
 

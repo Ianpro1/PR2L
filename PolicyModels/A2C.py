@@ -3,10 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.utils as nn_utils
 import numpy as np
-from common import models, extentions
+from common import common_wrappers, models, extentions
 import gym
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
-from PR2L import agent, common_wrappers, experience, utilities, rendering
+from PR2L import agent, experience, utilities, rendering
 import multiprocessing as mp
 from collections import deque
 import torch.utils.tensorboard as tensorboard

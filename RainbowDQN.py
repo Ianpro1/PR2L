@@ -9,12 +9,13 @@ import gym
 import numpy as np
 import torch
 import torch.nn.utils as utils
+from common import common_wrappers
 import common.models as models
 from torch.utils.tensorboard import SummaryWriter
 import time
 from collections import namedtuple, deque
 import torch.multiprocessing as tmp
-from PR2L import agent, utilities, experience, common_wrappers, rendering
+from PR2L import agent, utilities, experience, rendering
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
@@ -37,10 +38,6 @@ parameters = {
 device = parameters["device"]
 preprocessor = agent.numpytoFloatTensor_preprossesing
 
-class SingleChannelWrapper(gym.ObservationWrapper):
-    def observation(self, observation):
-        return np.array([observation])
-
 def make_env(ENV_NAME, inconn=None, render=False): 
         if render:
             env = gym.make(ENV_NAME, render_mode="rgb_array")
@@ -52,7 +49,7 @@ def make_env(ENV_NAME, inconn=None, render=False):
         env = AtariPreprocessing(env)
         env = common_wrappers.RGBtoFLOAT(env)
         env = common_wrappers.BetaSumBufferWrapper(env, 3, 0.4)
-        env = SingleChannelWrapper(env)
+        env = common_wrappers.SingleChannelWrapper(env)
         #specific to atariBreakout
         #env = common_wrappers.PenalizedLossWrapper(env)
         return env

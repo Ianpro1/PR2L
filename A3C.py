@@ -2,13 +2,13 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 import torch.nn.utils as nn_utils
-from PR2L import agent, utilities, rendering, common_wrappers, experience
+from PR2L import agent, utilities, rendering, experience
 import torch.multiprocessing as mp
 import numpy as np
 import gym
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 from collections import namedtuple, deque
-from common import models, extentions
+from common import common_wrappers, models, extentions
 from common.performance import FPScounter
 
 #MsPacman needs colors or higher resolution
@@ -36,10 +36,6 @@ BETA_ENTROPY = parameters["BETA_ENTROPY"]
 device = "cuda" if torch.cuda.is_available() else "cpu"
 preprocessor = agent.numpytoFloatTensor_preprossesing
 
-class SingleChannelWrapper(gym.ObservationWrapper):
-    def observation(self, observation):
-        return np.array([observation])
-
 def make_env(ENV_ID, inconn=None, render=False):
     
     if render:
@@ -53,7 +49,7 @@ def make_env(ENV_ID, inconn=None, render=False):
     env = AtariPreprocessing(env)
     env = common_wrappers.RGBtoFLOAT(env)
     #env = common_wrappers.BetaSumBufferWrapper(env, 3, 0.4)
-    env = SingleChannelWrapper(env)
+    env = common_wrappers.SingleChannelWrapper(env)
     '''if inconn is not None:
             env = rendering.SendimgWrapper(env, inconn, frame_skip=6)'''
     return env

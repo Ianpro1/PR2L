@@ -2,6 +2,7 @@ import gym
 import numpy as np
 import torch
 import torch.nn.utils as utils
+from common import common_wrappers
 import common.extentions as E
 import common.models as models
 import common.atari_wrappers as atari_wrappers
@@ -10,7 +11,7 @@ import time
 from collections import namedtuple, deque
 import common.Rendering as Rendering
 import torch.multiprocessing as tmp
-from PR2L import agent, utilities, experience, common_wrappers
+from PR2L import agent, utilities, experience
 import common.performance as performance
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 

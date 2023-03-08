@@ -1,9 +1,10 @@
+
 import gym
 import numpy as np
 import cv2
 from collections import deque
-import math
 
+#deprecated
 class process84Wrapper(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -27,6 +28,7 @@ class process84Wrapper(gym.ObservationWrapper):
         x_t = (x_t - 70.) / 78.
         return x_t
 
+#deprecated
 class MaxAndSkipFireReset(gym.Wrapper):
     def __init__(self, env, frameskip=4):
         super().__init__(env)
@@ -55,6 +57,7 @@ class MaxAndSkipFireReset(gym.Wrapper):
 
         return obs, extra
 
+#deprecated
 class BufferWrapper(gym.ObservationWrapper):
     #creates n channels for n steps
     def __init__(self, env, n_steps, dtype=np.float32):
@@ -79,6 +82,7 @@ class BufferWrapper(gym.ObservationWrapper):
         self.buffer[-1] = observation
         return self.buffer
 
+#deprecated
 class ClipReward(gym.Wrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -92,6 +96,7 @@ class ClipReward(gym.Wrapper):
         obs = self.env.reset()
         return obs
 
+#deprecated
 class AutomateFireAction(gym.Wrapper):
     def __init__(self, env=None, penalize=0.0):
         super().__init__(env)
@@ -119,6 +124,7 @@ class AutomateFireAction(gym.Wrapper):
         self.last = self.lives
         return obs, r, done, _, info
 
+#deprecated
 def WrapAtariEnv(env):
     env = AutomateFireAction(env)
     env = MaxAndSkipFireReset(env)
@@ -127,7 +133,7 @@ def WrapAtariEnv(env):
     #env = ClipReward(env)
     return env
 
-
+#deprecated
 class LiveRenderWrapper(gym.Wrapper):
     #basic liverender wrapper although it is preferable to use funtionalObservationWrapper
     #Note: configured as an old env wrapper with 4 and 1 expected outputs from step() and reset(), respectively
@@ -143,6 +149,7 @@ class LiveRenderWrapper(gym.Wrapper):
         obs = self.env.reset()
         self.F(obs[0])
         return obs
+
 
 
 class RGBtoFLOAT(gym.ObservationWrapper):
@@ -183,7 +190,6 @@ class BetaSumBufferWrapper(gym.Wrapper):
         self.buffer[1:] = self.buffer[:-1]
         self.buffer[0] = new_obs
 
-
 class PenalizedLossWrapper(gym.Wrapper):
     def __init__(self, env, penality=-1., abs_treshold=1.):
         super().__init__(env)
@@ -209,3 +215,8 @@ class PenalizedLossWrapper(gym.Wrapper):
         self.lastlwl = info["lives"]
 
         return obs, info
+    
+class SingleChannelWrapper(gym.ObservationWrapper):
+    def observation(self, observation):
+        return np.array([observation])
+    

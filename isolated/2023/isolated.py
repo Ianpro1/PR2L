@@ -3,10 +3,11 @@ import torch
 import math
 import gym
 import numpy as np 
-from PR2L import utilities, rendering, common_wrappers
+from PR2L import utilities, rendering
 import PR2L.agent as agnt
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 import torch.multiprocessing as mp
+from common import common_wrappers
 import common.models as models
 
 class SingleChannelWrapper(gym.ObservationWrapper):
