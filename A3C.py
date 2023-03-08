@@ -157,7 +157,7 @@ if __name__ == "__main__":
     net.apply(models.network_reset)
 
 
-    net.load_state_dict(torch.load("model_saves/BattleZoneNoFrameskip-v4/model_001/state_dicts/2023-03-07/save-23-21.pt"))
+    net.load_state_dict(torch.load("model_saves/BattleZoneNoFrameskip-v4/model_001/state_dicts/2023-03-08/save-00-05.pt"))
     writer = SummaryWriter()
     render_agent = agent.PolicyAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)
