@@ -143,7 +143,7 @@ if __name__ == '__main__':
 
     #init display
     inconn, outconn = tmp.Pipe()
-    p1 = tmp.Process(target=rendering.init_display, args=(outconn, (840, 640)))
+    p1 = tmp.Process(target=rendering.init_display, args=(outconn, (210, 160)))
     p1.start()
     
     #multiprocessing for training
