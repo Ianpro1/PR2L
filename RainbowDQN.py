@@ -21,7 +21,7 @@ from gym.wrappers.atari_preprocessing import AtariPreprocessing
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
 
 parameters = {
-    "ENV_NAME":"TennisNoFrameskip-v4",
+    "ENV_NAME":"BreakoutNoFrameskip-v4",
     "complete":False,
     "LEARNING_RATE":1e-4,
     "GAMMA":0.99,
@@ -31,7 +31,7 @@ parameters = {
     "REPLAY_SIZE":10000,
     "Noisy": True,
     "CLIP_GRAD":0.1,
-    "SOLVED":1600,
+    "SOLVED":1000,
     "device": "cuda"
 }
 
@@ -51,7 +51,7 @@ def make_env(ENV_NAME, inconn=None, render=False):
         env = common_wrappers.BetaSumBufferWrapper(env, 3, 0.4)
         env = common_wrappers.SingleChannelWrapper(env)
         #specific to atariBreakout
-        #env = common_wrappers.PenalizedLossWrapper(env)
+        env = common_wrappers.PenalizedLossWrapper(env)
         return env
 
 def play_func(parameters, net, exp_queue, device, inconn=None):
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     
     #specific for atari
     obs_shape = (1, 84, 84)
-    n_actions = 8
+    n_actions = 4
     
     net = models.NoisyDualDQN(obs_shape, n_actions).to(device)
     net.share_memory()
@@ -169,7 +169,7 @@ if __name__ == '__main__':
     net.apply(models.network_reset)
     time.sleep(1)
     net.apply(models.network_reset)
-    #net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_001/state_dicts/2023-02-26/save-21-45.pt"))
+    net.load_state_dict(torch.load("model_saves/BreakoutNoFrameskip-v4/model_001/state_dicts/2023-03-09/save-00-37.pt"))
     tgt_net.sync()
     
     optimizer = torch.optim.Adam(net.parameters(), lr=parameters['LEARNING_RATE'])
@@ -222,6 +222,6 @@ if __name__ == '__main__':
             print("sync...")
             tgt_net.sync()
     
-        if idx % 40000 == 0:
+        if idx % 60000 == 0:
             backup.save(parameters=parameters)
             backup.mkrender(fps=160.0)
