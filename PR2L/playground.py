@@ -3,20 +3,50 @@ import gym
 import numpy as np
 
 
+class DeterministicObservations:
+    def __init__(self, buffer_length, input_shape):
+        shape = [buffer_length]
+        shape.extend(input_shape)
+        self.buffer = np.random.uniform(-100., 100., size=shape)
+        self.pos = 0
+    def __call__(self, y, x):
+        if x is None:
+            self.pos = 0
+        elif self.pos >= len(self.buffer):
+            self.pos = 0
+
+        obs = self.buffer[self.pos]
+        self.pos += 1
+        return obs
+
+class DeterministicRewards:
+    def __init__(self, buffer_length):
+        self.buffer = np.random.choice(2, size=buffer_length, p=(0.20, 0.80))
+        self.pos = 0
+    def __call__(self, y, x):
+        if x is None:
+            self.pos = 0
+        elif self.pos >= len(self.buffer):
+            self.pos = 0
+
+        rew = self.buffer[self.pos]
+        self.pos += 1
+        return rew
+
 class Dummy(gym.Env):
     def __init__(self, obs_shape, obs_func=None, rew_func=None, done_func=None, trunc_func=None, info_func=None):
         self.cur_obs = None
         self.shape = obs_shape
-        if obs_func:
+        
+        if obs_func:                
             self.obs_func = obs_func
         else:
-            self.obs_func = lambda x, y: np.empty(shape=obs_shape)
+            self.obs_func = DeterministicObservations(1000, self.shape)
         
         if rew_func:
-
             self.rew_func = rew_func
         else:
-            self.rew_func = lambda x, y: 1.0
+            self.rew_func = DeterministicRewards(1000)
 
         if done_func:
             self.done_func = done_func
@@ -34,8 +64,13 @@ class Dummy(gym.Env):
             self.info_func = lambda x, y: {"DummyEnv":True}
 
     def reset(self):
-        obs = self.obs_func(self, None)
-        info = self.info_func(self, None)
+        action = None
+        obs = self.obs_func(self, action)
+        self.rew_func(self, action)
+        self.done_func(self, action)
+        self.trunc_func(self, action)
+        info = self.info_func(self, action)
+
         self.cur_obs = (obs, info)
         return obs, info
 
@@ -45,9 +80,9 @@ class Dummy(gym.Env):
         done = self.done_func(self, action)
         trunc = self.trunc_func(self, action)
         info = self.info_func(self, action)
+
         self.cur_obs = (obs, rew, done, trunc, info)
         return obs, rew, done, trunc, info
-
 
 class OldDummyWrapper(Dummy):
     #wraps the DummyEnv class to configure it as an older version of gym environments
@@ -61,30 +96,18 @@ class OldDummyWrapper(Dummy):
     def reset(self):
         obs, _ = self.env.reset()
         return obs
-    
+
 class EpisodeLength:
-    #ends episode after n-1 steps (the nth step returns done)
+    #episode ends after n steps (the nth+1 step returns done)
     def __init__(self, length):
         self.len = length
         self.count = 0
     def __call__(self, y, x):
-        if self.count > self.len -2:
+        if self.count > self.len -1:
             self.count = 0
             return True
         else:
             self.count +=1
             return False
-        
-class VaryObservation:
-    #returns random pixel image observation of integer values 0->255 (in this case shape is user-defined)
-    def __init__(self, dtype=np.uint8):
-        self.dtype = dtype
-    
-    def __call__(self, y, x):
-        x = np.random.randint(0, 255, size=y.shape).astype(self.dtype)
-        return x
 
-def ScaleRGBimage(y, x):
-    #returns float version of RGB image with integer values from 0 to 255
-    x = x.astype(np.float32) / 255.
-    return x
+#TODO environment that verifies the contents of exp_source and or buffer

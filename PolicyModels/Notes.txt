@@ -1,0 +1,37 @@
+#continuous space implementation
+
+#A2C method
+
+base-network -> 3 heads: value network, mean network, variance network
+
+Activation functions: Tanh and Softplus for mu and sigma respectively
+The mean (mu) and variance (sigma) are used in a gaussian distribution to output an action
+
+log probability is calculated using simplified Gaussian Distribution Probability Density fonction
+Entropy uses the differential entropy definition
+
+training loop has an additional test function (no exploration) for testing the model's performance periodically without variance
+
+
+#Deterministic Policy Gradient (off-line/policy)
+
+http://proceedings.mlr.press/v32/silver14.pdf
+https://arxiv.org/abs/1509.02971
+
+Actor is std feed foward -> tanh -> actions
+critic takes actions and observations -> Q-value (Note: the shared network is the one that takes the observation as input)
+
+Actor and critic shoud be 2 separate classes: Actor takes obs param in foward fct, while critic takes obs + action
+-introduces agent statefulness (track OU noise values)
+-made up of 2 tgt_net and 2 optimizers
+
+training consists of using mse for critic and maximizing the critic output FOR THE ACTOR (using the actor's optimizer)
+
+-target networks uses soft sync (small ratio per step for smooth transition)
+
+
+#Distributional Policy Gradient
+-is DDPG with a few improvements
+actor returns a distribition of atoms for probabilities of values from predefined range
+-OU process yields similar result to simple random noise
+-uses cross-entropy loss for difference between 2 probability distributions

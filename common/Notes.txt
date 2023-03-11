@@ -1,0 +1,5 @@
+
+#Notes: 
+
+Consider using None value call/pass to models.
+When last_state is terminated, to avoid creating zeroes_like(tensor) -> 0.0
