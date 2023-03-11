@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
     if True:
         inconn, outconn = mp.Pipe()
-        display = mp.Process(target=rendering.init_display, args=(outconn, (840, 640)))
+        display = mp.Process(target=rendering.init_display, args=(outconn, (420, 320)))
         display.start()
     else:
         inconn = None
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     net.apply(models.network_reset)
 
 
-    net.load_state_dict(torch.load("model_saves/BattleZoneNoFrameskip-v4/model_001/state_dicts/2023-03-08/save-12-15.pt"))
+    net.load_state_dict(torch.load("_backup/saved_dicts/save-00-05.pt"))
     writer = SummaryWriter()
     render_agent = agent.PolicyAgent(net, device)
     render_env = make_env(parameters["ENV_NAME"], render=True)
@@ -230,4 +230,3 @@ if __name__ == "__main__":
 
         if idx % 100 == 0:
             print("value_loss", value_loss.item())
-        
