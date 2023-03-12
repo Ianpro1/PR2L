@@ -1,5 +1,6 @@
 #experience contains a variety of classes to gather and store the PR2L.agent.Agent experiences
 import gym
+import gymnasium
 from collections import namedtuple, deque
 from .agent import Agent
 import numpy as np
@@ -160,7 +161,7 @@ class MemorizedExperienceSource:
     #remove all deque and arrays related to done flags since last_state=None is essentially done
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99):
         assert isinstance(agent, Agent)
-        assert isinstance(env, (gym.Env, list, tuple))
+        assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))
                 
         self.n_steps = n_steps
 
@@ -269,7 +270,7 @@ class ExperienceSource:
     #remove all deque and arrays related to done flags since last_state=None is essentially done
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99):
         assert isinstance(agent, Agent)
-        assert isinstance(env, (gym.Env, list, tuple))
+        assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))
                 
         self.n_steps = n_steps
 
