@@ -2,7 +2,7 @@
 This is a repository for a Reinforcement Learning Library called PR2L
 
 ### A3C on BattleZone
-This is an Asynchronus Actor Critic agent playing Atari Battlezone. PREPROCESSING: The agent uses openai's AtariPreprocessing class, thus, the agent's observation space is wrapped from the standard ATARI observation of 210 by 160 RGB pixels to the conventional 84 by 84 gray pixels. To display motion, the image was then summed with n previous frames, decayed to an arbitruary factor.
+An Asynchronous Actor Critic agent is playing the Atari Battlezone game. The AtariPreprocessing class from openai is used to process the agent's observation space before it is played. This causes the agent's observation space to change from the typical 210 by 160 RGB pixel ATARI observation to a more traditional 84 by 84 grey pixel format along with other changes. The current frame is combined with n prior frames, each of which has had its values decremented by an arbitrary amount, to simulate motion.
 
 <img src="https://github.com/Ianpro1/RL-agents/blob/master/GIF/BattleZone.gif" width="400">
 
