@@ -22,7 +22,7 @@ BATCH_SIZE = 32
 LEARNING_RATE = 5e-5
 ENTROPY_BETA = 1e-4
 TEST_ITERS = 100
-NUM_ENVS = 50
+NUM_ENVS = 1
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class ContinuousA2C(nn.Module):
