@@ -31,12 +31,11 @@ parameters = {
     "REPLAY_SIZE":10000,
     "Noisy": True,
     "CLIP_GRAD":0.1,
-    "SOLVED":1000,
-    "device": "cuda"
+    "SOLVED":1000
 }
 
-device = parameters["device"]
-preprocessor = agent.numpytoFloatTensor_preprossesing
+device = "cuda" if torch.cuda.is_available() else "cpu"
+preprocessor = agent.float32_preprocessing
 
 def make_env(ENV_NAME, inconn=None, render=False): 
         if render:

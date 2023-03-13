@@ -207,7 +207,7 @@ class MemorizedExperienceSource:
                 _states[i].append(cur_obs[i])
                 self.__sum_rewards_steps(reward, done, i)
                 if done:
-                    
+                    print('reset from exp')
                     #decay all
                     self.__decay_all_rewards(_rewards[i])
 
@@ -268,7 +268,7 @@ class MemorizedExperienceSource:
 
 class ExperienceSource:
     #remove all deque and arrays related to done flags since last_state=None is essentially done
-    def __init__(self, env, agent, n_steps=2, GAMMA=0.99):
+    def __init__(self, env, agent, n_steps=2, GAMMA=0.99, track_rewards=True):
         assert isinstance(agent, Agent)
         assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))
                 
@@ -281,11 +281,15 @@ class ExperienceSource:
             self.env = [env]
             env_len = 1
         self.agent = agent
-        self.env_len = env_len        
-        self.tot_reward = [0.]*env_len
-        self.tot_rewards = []
-        self.tot_step = [0.]*env_len
-        self.tot_steps = []
+        self.env_len = env_len    
+        self.track_rewards = track_rewards
+
+        if track_rewards:
+            self.tot_reward = [0.]*env_len
+            self.tot_rewards = []
+            self.tot_step = [0.]*env_len
+            self.tot_steps = []
+
         self.gamma = GAMMA
         self.n_eps_done = 0
 
@@ -293,7 +297,6 @@ class ExperienceSource:
         _states = []
         _rewards = []
         _actions = []
-        
         cur_obs = []
         for e in self.env:
             _states.append(deque(maxlen=self.n_steps))
@@ -304,16 +307,15 @@ class ExperienceSource:
 
         while True:   
             actions = self.agent(cur_obs)
-            
             for i, env in enumerate(self.env):
                 nextobs, reward, done, _, _ = env.step(actions[i])
-
                 _actions[i].append(actions[i])
                 _rewards[i].append(reward)
                 _states[i].append(cur_obs[i])
-                self.__sum_rewards_steps(reward, done, i)
+                if self.track_rewards:
+                    self.__sum_rewards_steps(reward, done, i)
                 if done:
-                    
+                    print("terminated from env id: ", i)
                     #decay all
                     decayed = self.__decay_all_rewards(_rewards[i])
                     _rewards[i].clear()
@@ -321,7 +323,6 @@ class ExperienceSource:
                         
                         exp = Experience(_states[i].popleft(), _actions[i].popleft(), decayed[-r_id], None)
                         yield exp
-                    
                     self.n_eps_done += 1
                     obs, _ = self.env[i].reset()
                     cur_obs[i] = obs
@@ -361,9 +362,10 @@ class ExperienceSource:
             self.tot_reward[env_id] = 0
             self.tot_steps.append(self.tot_step[env_id])
             self.tot_step[env_id] = 0
-
+    
 
     def pop_rewards_steps(self):
+        assert self.track_rewards is True
         res = list(zip(self.tot_rewards, self.tot_steps))
         if res:
             self.tot_rewards.clear()

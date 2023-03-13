@@ -7,6 +7,7 @@ from gym import Wrapper
 import cv2
 import numpy as np
 
+
 def unpack_batch(batch):
     #Note: last_states batch does not include terminated states (states equal to None)
     #This function assumes len(last_states) < 1 is handled properly during training

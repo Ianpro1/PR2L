@@ -41,10 +41,10 @@ class EpsilonGreedySelector(ActionSelector):
         return actions
 
 
-def numpytotensor_preprossesing(x):
+def preprocessing(x):
     return torch.tensor(np.array(x, copy=False))
 
-def numpytoFloatTensor_preprossesing(x):
+def float32_preprocessing(x):
     return torch.FloatTensor(np.array(x, copy=False))
 
 class TargetNet:
@@ -75,10 +75,10 @@ class TargetNet:
 class Agent:
     def __call__(self):
         raise NotImplementedError
-    
+
 
 class BasicAgent(Agent):
-    def __init__(self, net, device="cpu", Selector= ArgmaxSelector(), preprocessing=numpytoFloatTensor_preprossesing):
+    def __init__(self, net, device="cpu", Selector= ArgmaxSelector(), preprocessing=float32_preprocessing):
         super().__init__()
         assert isinstance(Selector, ActionSelector)
         self.selector = Selector
@@ -90,12 +90,12 @@ class BasicAgent(Agent):
     def __call__(self, x):
         x = self.preprocessing(x)
         values = self.net(x.to(self.device))
-        actions = self.selector(values.cpu().numpy())
+        actions = self.selector(values.data.cpu().numpy())
         return actions
 
 
 class PolicyAgent(Agent):
-    def __init__(self, net, device="cpu", Selector= ProbabilitySelector(), preprocessing=numpytoFloatTensor_preprossesing):
+    def __init__(self, net, device="cpu", Selector= ProbabilitySelector(), preprocessing=float32_preprocessing):
         super().__init__()
         assert isinstance(Selector, ActionSelector)
         self.selector = Selector
@@ -108,7 +108,7 @@ class PolicyAgent(Agent):
         x = self.preprocessing(x)
         act_v = self.net(x.to(self.device))[0]
         act_v = F.softmax(act_v, dim=1)
-        actions = self.selector(act_v.cpu().numpy())
+        actions = self.selector(act_v.data.cpu().numpy())
         return actions
 
 

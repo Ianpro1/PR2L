@@ -34,7 +34,7 @@ CLIP_GRAD = parameters["CLIP_GRAD"]
 BETA_POLICY = parameters["BETA_POLICY"]
 BETA_ENTROPY = parameters["BETA_ENTROPY"]
 device = "cuda" if torch.cuda.is_available() else "cpu"
-preprocessor = agent.numpytoFloatTensor_preprossesing
+preprocessor = agent.float32_preprocessing
 
 def make_env(ENV_ID, inconn=None, render=False):
     
@@ -230,3 +230,4 @@ if __name__ == "__main__":
 
         if idx % 100 == 0:
             print("value_loss", value_loss.item())
+    
