@@ -1,4 +1,4 @@
-# PR2L (python/pytorch reinforcement learning library)
+# PR2L (Python Reinforcement Learning Library)
 This is a repository for a Reinforcement Learning Library called PR2L (python/pytorch reinforcement learning library). Currently, PR2L has a total of 5 modules: agent, experience, playground, rendering, and utilities. Each module file includes a brief description of its usage. As this library is still in early development, there is limited documentation available. Therefore, if you are interested in trying out PR2L, I recommend taking a look at the source code and the comments provided there.
 
 ### A3C on BattleZone
@@ -6,7 +6,7 @@ An Asynchronous Actor Critic agent playing the Atari Battlezone game. The AtariP
 
 <img src="https://github.com/Ianpro1/RL-agents/blob/master/GIF/BattleZone.gif" width="400">
 
-### RainbowDQN-variant on Freeway
+### RainbowDQN-Variant on Freeway
 This is a variant of the Rainbow DQN architecture playing Freeway
 PREPROCESSING: The agent uses the same preprocessing as the above model.
 
