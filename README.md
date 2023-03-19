@@ -12,3 +12,7 @@ PREPROCESSING: The agent uses the same preprocessing as the above model.
 
 <img src="https://github.com/Ianpro1/RL-agents/blob/master/GIF/Freeway.gif" width="400">
 
+
+
+Versions of Library Dependencies: PyTorch Cuda 11.6, Python 3.10.8, gym 0.26.2, Pygame 2.1.2 and gymnasium 0.27.1
+*most dependencies should work at other versions with the exception of gym (the library should handle truncated flags [Not Yet])
