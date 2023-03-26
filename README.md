@@ -19,4 +19,4 @@ PREPROCESSING: The agent uses the same preprocessing as the above model.
 
 **Versions and Dependencies:*** _PyTorch Cuda 11.6, Python 3.10.8, gym 0.26.2, Pygame 2.1.2 and gymnasium 0.27.1_
 
-<sup>*most dependencies should work at other versions with the exception of gym (the library should handle truncated flags [Not Yet])</sup>
+<sup>Most dependencies will work in other versions with the exception of gym/gymnasium (the library handles truncated flags [Not Yet], therefore older versions are not supported.)</sup>
