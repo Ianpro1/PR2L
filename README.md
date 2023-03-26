@@ -1,4 +1,6 @@
 # PR2L (Python Reinforcement Learning Library)
+***status: early development***
+
 This is a repository for a Reinforcement Learning Library called PR2L (python/pytorch reinforcement learning library). Currently, PR2L has a total of 6 modules: training (new), agent, experience, playground, rendering, and utilities. Each module file includes a brief description of its usage. As this library is still in early development, there is limited documentation available. Therefore, if you are interested in trying out PR2L, I recommend taking a look at the source code and the comments provided there.
 ******
 ### A3C on BattleZone
