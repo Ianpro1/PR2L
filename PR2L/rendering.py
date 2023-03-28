@@ -54,7 +54,7 @@ def ChannelFirstPreprocessing(img):
     return img
 
 
-def HandleFrame(frame,screen, screen_size, preprocessing=None):
+def HandleFrame(frame, screen, screen_size, preprocessing=None):
     if preprocessing is not None:
         frame = preprocessing(frame)
     else:
@@ -108,16 +108,20 @@ def init_display(outconn, screen_size=None, preprocessing=None):
 
 
 class ReplayWrapper(Wrapper):
-    def __init__(self, env, queue):
+    def __init__(self, env, queue, copy=False):
         super().__init__(env)
         self.queue = queue
         self.framebuffer = []
         self.fullqueue = False
+        self.copy_ = copy
     
     def reset(self):
         print("reset")
         if self.queue.full() == False and len(self.framebuffer) > 0:
-            self.queue.put(self.framebuffer)
+            if self.copy_:
+                self.queue.put(self.framebuffer.copy())
+            else:
+                self.queue.put(self.framebuffer)
         obs, info = self.env.reset()
         self.framebuffer.clear()
         self.framebuffer.append(self.env.render())
@@ -144,15 +148,13 @@ def init_replay(queue, delay, screen_size=None, preprocessing=None):
             screen_size = replay[0].shape[:-1]
             break
         
-        
+    
     pygame.init()
     screen = pygame.display.set_mode((screen_size[1], screen_size[0]))
     frame=None
     while True:
         
-        
         replay = queue.get(block=True)        
-        
         if replay is None:
                 break 
         

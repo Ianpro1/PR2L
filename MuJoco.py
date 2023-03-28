@@ -1,3 +1,0 @@
-import mujoco_py
-
-

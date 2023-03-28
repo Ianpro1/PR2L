@@ -57,7 +57,6 @@ class ContinuousA2CAgent(agent.Agent):
         self.device = device
         self.preprocessor = preprocessor
 
-
     @torch.no_grad()
     def __call__(self, states):
         states_v = self.preprocessor(states)

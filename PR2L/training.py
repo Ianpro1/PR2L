@@ -25,5 +25,45 @@ def unpack_batch_A2C(batch, net, GAMMA=0.99, N_STEPS=2, device="cpu", value_inde
     return states, actions, refs_q_v
 
 
+#for Simple DQN - using target net to argmax (Never tested, there might be unsqueezing to do)
+def unpack_batch_DQN_tgt(batch, tgt_net, GAMMA=0.99, N_STEPS=2, device="cpu"):
+    states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
 
+    states = agent.float32_preprocessing(states).to(device)
+    rewards = agent.float32_preprocessing(rewards).to(device)
+    actions = torch.LongTensor(np.array(actions, copy=False)).to(device)
+    if last_states:
+        tgt_q_v = torch.zeros_like(rewards)
+        last_states = agent.float32_preprocessing(last_states).to(device)
+        with torch.no_grad():
+            tgt_q = tgt_net.target_model(last_states)
+            tgt_q = tgt_q.max(dim=1)[0]
+            tgt_q_v[not_dones] = tgt_q
+
+        refs_q_v = rewards + tgt_q_v * (GAMMA**N_STEPS)
+    else:
+        refs_q_v = rewards
+    return states, actions, refs_q_v
     
+
+#for Double DQNs - using main network to argmax (Never tested, there might be unsqueezing to do)
+def unpack_batch_DQN_double(batch, net, tgt_net, GAMMA=0.99, N_STEPS=2, device="cpu"):
+    states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
+
+    states = agent.float32_preprocessing(states).to(device)
+    rewards = agent.float32_preprocessing(rewards).to(device)
+    actions = torch.LongTensor(np.array(actions, copy=False)).to(device)
+    if last_states:
+        tgt_q_v = torch.zeros_like(rewards)
+        last_states = agent.float32_preprocessing(last_states).to(device)
+        with torch.no_grad():
+            tgt_q = net(last_states)
+            argmax = tgt_q.argmax(dim=1)[0]
+            tgt_q = tgt_net.target_model(last_states)
+            tgt_q = tgt_q[argmax.unsqueeze(-1)]
+            tgt_q_v[not_dones] = tgt_q
+
+        refs_q_v = rewards + tgt_q_v * (GAMMA**N_STEPS)
+    else:
+        refs_q_v = rewards
+    return states, actions, refs_q_v
