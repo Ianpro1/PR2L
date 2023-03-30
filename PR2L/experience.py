@@ -205,7 +205,7 @@ class ExperienceSource:
             _actions.append(deque(maxlen=self.n_steps))
             obs, _ = e.reset()
             cur_obs.append(obs)
-
+        
         while True:   
             actions = self.agent(cur_obs)
             for i, env in enumerate(self.env):
@@ -216,7 +216,6 @@ class ExperienceSource:
                 if self.track_rewards:
                     self.__sum_rewards_steps(reward, done, i)
                 if done:
-                    print("terminated from env id: ", i)
                     #decay all
                     decayed = self.__decay_all_rewards(_rewards[i])
                     _rewards[i].clear()

@@ -116,7 +116,6 @@ class ReplayWrapper(Wrapper):
         self.copy_ = copy
     
     def reset(self):
-        print("reset")
         if self.queue.full() == False and len(self.framebuffer) > 0:
             if self.copy_:
                 self.queue.put(self.framebuffer.copy())
