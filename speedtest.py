@@ -4,8 +4,10 @@ import torch
 from PR2L import agent, experience, playground
 import ptan
 import timeit
+import test
 
-N_STEPS = 1000
+
+N_STEPS = 4
 #performance comparison between PR2L ExperienceSource, PR2L ExperienceSourcev2 and ptan's equivalent: ExperienceSourceFirstLast
 REP=1
 EPISODE_LENGTH = 3000
@@ -14,9 +16,9 @@ env = [playground.Dummy((1,)) for _ in range(3)]
 
 net = models.DenseDQN(1, 128, 4)
 
-agent = agent.BasicAgent(net)
-exp_source = experience.ExperienceSource(env, agent, N_STEPS, 0.99)
-exp_sourcev2 = experience.ExperienceSourceV2(env, agent, N_STEPS, 0.99)
+ag = agent.BasicAgent(net)
+exp_source = experience.ExperienceSource(env, ag, N_STEPS, 0.99)
+exp_sourcev2 = test.exp(env, ag, N_STEPS, 0.99)
 
 def test1(idx=1000, bprint=False):
     list = []
@@ -31,7 +33,7 @@ def test1(idx=1000, bprint=False):
 def speedtest1():
     return timeit.timeit(test1, number=REP)
 
-speed1 = speedtest1()
+#speed1 = speedtest1()
 
 def test2(idx=1000, bprint=False):
     list = []
@@ -46,9 +48,9 @@ def test2(idx=1000, bprint=False):
 def speedtest2():
     return timeit.timeit(test2, number=REP)
 
-speed2 = speedtest2()
+#speed2 = speedtest2()
 
-print(speed1, speed2)
+#print(speed1, speed2)
 
 test1(3, 1)
 print("--------Test 2 --------")
