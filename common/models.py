@@ -286,3 +286,29 @@ class deepprint(nn.Module):
     @staticmethod
     def rainbow(x):
         return [x.max().item(), x.mean().item(), x.min().item()]
+    
+
+class ContinuousA2C(nn.Module):
+    def __init__(self, obs_size, act_size, HIDDEN):
+        super().__init__()
+
+        self.base = nn.Sequential(
+            nn.Linear(obs_size, HIDDEN),
+            nn.ReLU()
+        )
+
+        self.mu = nn.Sequential(
+            nn.Linear(HIDDEN, act_size),
+            nn.Tanh()
+        )
+
+        self.var = nn.Sequential(
+            nn.Linear(HIDDEN, act_size),
+            nn.Softplus()
+        )
+
+        self.value = nn.Linear(HIDDEN, 1)
+
+    def forward(self, x):
+        base_out = self.base(x)
+        return self.mu(base_out), self.var(base_out), self.value(base_out)

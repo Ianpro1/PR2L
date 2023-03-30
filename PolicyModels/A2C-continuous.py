@@ -11,8 +11,8 @@ import numpy as np
 import torch.nn as nn
 import torch
 import math
-
-ENV_ID = "InvertedDoublePendulum-v4"
+from common import models
+ENV_ID = "InvertedPendulum-v4"
 HIDDEN = 128
 GAMMA = 0.99
 N_STEPS = 2
@@ -23,26 +23,6 @@ ENTROPY_BETA = 1e-4
 TEST_ITERS = 100
 NUM_ENVS = 40
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-class ContinuousA2C(nn.Module):
-    def __init__(self, obs_size, act_size):
-        super().__init__()
-        self.base = nn.Sequential(
-            nn.Linear(obs_size, HIDDEN),
-            nn.ReLU()
-        )
-        self.mu = nn.Sequential(
-            nn.Linear(HIDDEN, act_size),
-            nn.Tanh()
-        )
-        self.var = nn.Sequential(
-            nn.Linear(HIDDEN, act_size),
-            nn.Softplus()
-        )
-        self.value = nn.Linear(HIDDEN, 1)
-    def forward(self, x):
-        base_out = self.base(x)
-        return self.mu(base_out), self.var(base_out), self.value(base_out)
 
 class ContinuousA2CAgent(agent.Agent):
     def __init__(self, net, device="cpu", preprocessor=agent.float32_preprocessing):
@@ -141,7 +121,7 @@ if __name__ == "__main__":
     display = mp.Process(target=rendering.init_replay, args=(replayqueue, 50))
     display.start()
     
-    net = ContinuousA2C(observation_shape, action_shape)
+    net = models.ContinuousA2C(observation_shape, action_shape, HIDDEN)
     net.to(device)
 
     _agent = ContinuousA2CAgent(net, device)
