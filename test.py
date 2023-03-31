@@ -1,77 +1,57 @@
-import array
-from collections import deque
-from PR2L.experience import Experience
+from PR2L import playground
+from collections import namedtuple, deque
 
-#doesn't work but performance gains are not impressive
-class exp:
-    def __init__(self, env, agent, n_steps, GAMMA):
-        self._len = len(env)
-        self.agent = agent
-        self.n_steps = n_steps
-        self.env = env
-        self.GAMMA = GAMMA
+Experience = namedtuple("Experience", ("state", "action", "reward", "next"))
 
-    def __iter__(self):
-        states = [] 
-        actions = []
-        cur_obs = []
-        init = [0.]*self.n_steps*self._len
-        rewards = array.array('d', init)
-        idd = [0]*self._len
+
+def decay_all(arr, idd):
+    prev = 0.
+    for i in reversed(range(idd+1)):
+        arr[i] = arr[i] + prev*GAMMA
+        prev = arr[i]
         
-        for e in self.env:
-            states.append(deque(maxlen=self.n_steps))
-            actions.append(deque(maxlen=self.n_steps))
-            obs, _ = e.reset()
-            cur_obs.append(obs)
+ 
+def decay_oldest(arr):
+    tot = 0
+    for i, r in enumerate(arr):
+        tot += r * GAMMA**i
+    arr[:-1] = arr[1:]
+    return tot
+
+#initialization of needed variables and objects
+envs = [playground.Dummy((1,), done_func=playground.EpisodeLength(10)) for _ in range(4)]
+_len = len(envs)
+n_steps = 4
+GAMMA = 0.99
+states = []
+actions = []
+rewards = []
+cur_obs = []
+for e in envs:
+    obs, info = e.reset()
+    states.append(deque(maxlen=n_steps))
+    actions.append(deque(maxlen=n_steps))
+    cur_obs.append(obs)
+    rewards.append([0.]*n_steps)
+idd = [0]*_len
+for i in range(10):
+    acts = [1,2,3,1] #use obs
+    for i, env in enumerate(envs):
+        nextobs, rew, done, trunc, info = env.step(acts[i])
+
+        states[i].append(cur_obs[i])
+        rewards[i][idd] = rew
+        actions[i].append(acts[i])
+
+        if done:
+            
+            idd[i] = 0
+            pass
         
-        while(True):
-            acts = self.agent(cur_obs)
-            for i, env in enumerate(self.env):
-                obs, rew, done, trunc, info = env.step(acts[i])
-                states[i].append(cur_obs[i])
-                actions[i].append(acts[i])
-                rewards[idd[i] + self.n_steps * i] = rew
+        if idd[i] == n_steps-1:
+            pass
+        
 
-                if done:
-                    rews = self.__decay_all(rewards[self.n_steps * i:idd[i]]) #also zero out
-                    
-                    for r in reversed(rews):
-                        exp = Experience(states[i].popleft(), actions[i].popleft(), r, None)
-                        yield exp
-                    
-                    rews = 0
-                    obs, _ = self.env[i].reset()
-                    cur_obs[i] = obs
-                    idd[i] = 0
-                    continue
-                
-                cur_obs[i] = obs
-
-
-                if idd[i] >= self.n_steps - 1:
-                    
-                    #decay for only the oldest
-                    old = self.__decay_oldest(rewards[self.n_steps * i:idd[i]]) #do a shift
-
-                    exp = Experience(states[i].popleft(), actions[i].popleft(), old, obs)
-                    yield exp
-                
-                if idd[i] < self.n_steps-1:
-                    idd[i] += 1
-    
-    def __decay_all(self, arr):
-        prev = 0.
-        for i in reversed(range(self.n_steps)):
-            arr[i] = arr[i] + prev* self.GAMMA
-            prev = arr[i]
-        return arr
-    
-    def __decay_oldest(self, arr):
-
-        tot = 0
-        for i, r in enumerate(arr):
-            tot += r * self.GAMMA**i
-        arr[:-1] = arr[1:]
-        return tot
-
+        #could be removed assuming all episodes are always over n_steps
+        if idd[i] < n_steps-1:
+            idd[i] += 1
