@@ -5,7 +5,7 @@ import gymnasium as gym
 import numpy as np
 
 
-#(author) example script that creates 4 TosserCPP environment from my MJCT library
+#(author: _ianmi) example script that creates 4 TosserCPP environment from my MJCT library
 
 def play():
 

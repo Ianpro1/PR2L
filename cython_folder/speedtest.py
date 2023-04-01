@@ -4,8 +4,7 @@ import torch
 from PR2L import agent, experience, playground
 import ptan
 import timeit
-
-import cexp
+from exp import expe
 
 
 N_STEPS = 4
@@ -21,9 +20,9 @@ ag = agent.BasicAgent(net)
 exp_source = experience.ExperienceSource(env, ag, N_STEPS, 0.99, False)
 
 
-exp_sourcev2 = cexp.expe(env, ag, N_STEPS, 0.99, False)
+exp_sourcev2 = expe(env, ag, N_STEPS, 0.99)
 
-def test1(idx=100000, bprint=False):
+def test1(idx=10000, bprint=False):
     list = []
     for i, x in enumerate(exp_source):
         if bprint:
@@ -38,7 +37,7 @@ def speedtest1():
 
 speed1 = speedtest1()
 
-def test2(idx=100000, bprint=False):
+def test2(idx=10000, bprint=False):
     list = []
     for i, x in enumerate(exp_sourcev2):
         if bprint:
