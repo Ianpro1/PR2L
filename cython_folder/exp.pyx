@@ -5,9 +5,6 @@ cimport numpy as np
 
 Experience = namedtuple("Experience", ("state", "action", "reward", "next"))
 
-cdef extern from "stdlib.h":
-    void *malloc(size_t size)
-
 class expe:
     
     def __init__(self, env, agent, n_steps, gamma):

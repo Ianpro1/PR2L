@@ -57,9 +57,8 @@ class SimpleReplayBuffer:
     def __iter__(self):
         return iter(self.buffer)
   
-
+#this addition can be made inside every agent class as internal states
 class MemorizedExperienceSource:
-    #remove all deque and arrays related to done flags since last_state=None is essentially done
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99):
         assert isinstance(agent, Agent)
         assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))
@@ -162,13 +161,11 @@ class MemorizedExperienceSource:
             self.tot_steps.clear()
         return res
 
-#TODO use lists instead of deque
 #TODO HeldExperienceSource (holds terminated environments until all are finished)
 #TODO EpisodeSource (stores episode instead of experiences)
-#TODO SyncExperienceSource (does not have __decay_all_rewards)
+#TODO SyncExperienceSource (does not have __decay_all_rewards / yields only 1 exp per iteration over envs)
 
 class ExperienceSource:
-    #remove all deque and arrays related to done flags since last_state=None is essentially done
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99, track_rewards=True):
         assert isinstance(agent, Agent)
         assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))
@@ -177,18 +174,17 @@ class ExperienceSource:
 
         if isinstance(env, (list, tuple)):
             self.env = env
-            env_len = len(env)
+            self.env_len = len(env)
         else: 
             self.env = [env]
-            env_len = 1
-        self.agent = agent
-        self.env_len = env_len    
+            self.env_len = 1
+        self.agent = agent   
         self.track_rewards = track_rewards
 
         if track_rewards:
-            self.tot_reward = [0.]*env_len
+            self.tot_reward = [0.]*self.env_len
             self.tot_rewards = []
-            self.tot_step = [0.]*env_len
+            self.tot_step = [0.]*self.env_len
             self.tot_steps = []
 
         self.gamma = GAMMA
@@ -201,11 +197,11 @@ class ExperienceSource:
         cur_obs = []
         for e in self.env:
             _states.append(deque(maxlen=self.n_steps))
-            _rewards.append(deque(maxlen=self.n_steps))
+            _rewards.append(deque(maxlen=self.n_steps)) #lists are slower than deque (13% slower)
             _actions.append(deque(maxlen=self.n_steps))
             obs, _ = e.reset()
             cur_obs.append(obs)
-        
+
         while True:   
             actions = self.agent(cur_obs)
             for i, env in enumerate(self.env):
@@ -219,20 +215,18 @@ class ExperienceSource:
                     #decay all
                     decayed = self.__decay_all_rewards(_rewards[i])
                     _rewards[i].clear()
-                    for r_id in range(1, len(decayed)+1): #used to get proper length
-                        
+                    for r_id in range(1, len(decayed)+1):
                         exp = Experience(_states[i].popleft(), _actions[i].popleft(), decayed[-r_id], None)
                         yield exp
                     self.n_eps_done += 1
-                    obs, _ = self.env[i].reset()
+                    obs, _ = env.reset()
                     cur_obs[i] = obs
                     continue
                 
                 cur_obs[i] = nextobs
 
-                #len(deque) is O(n)! TODO -> try to place rewards in an array instead of deque
                 if len(_actions[i]) == self.n_steps:
-                    #decay for only the oldest
+                    #decay oldest
                     self.__decay_oldest_reward(_rewards[i])
 
                     exp = Experience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), nextobs)
@@ -270,5 +264,3 @@ class ExperienceSource:
             self.tot_rewards.clear()
             self.tot_steps.clear()
         return res  
-    
- 

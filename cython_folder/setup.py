@@ -4,6 +4,6 @@ import subprocess
 subprocess.call(["cython","-a","exp.pyx"])
 
 setup(
-    ext_modules = cythonize("exp.pyx", annotate=True),
+    ext_modules = cythonize("expv2.pyx", annotate=True),
     
 )
