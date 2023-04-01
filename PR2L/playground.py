@@ -1,9 +1,14 @@
 #playground provides Dummy environments and tools for testing basic algorithms 
-import gym
+import gymnasium as gym
 import numpy as np
 
 
 class DeterministicObservations:
+    """
+    Once initialized, the class __call__ should always return the same observation on every given step.
+    Since the observations are initially random, there are stored in a buffer of length = buffer_length.
+    The second argument: input_shape, will defined the shape of every observation.
+    """
     def __init__(self, buffer_length, input_shape):
         shape = [buffer_length]
         shape.extend(input_shape)
@@ -20,6 +25,10 @@ class DeterministicObservations:
         return obs
 
 class DeterministicRewards:
+    """
+    Once initialized, the class __call__ should always return the same rewards on every given step.
+    Since the rewards are initially random, there are stored in a buffer of length = buffer_length.
+    """
     def __init__(self, buffer_length):
         self.buffer = np.random.choice(2, size=buffer_length, p=(0.20, 0.80))
         self.pos = 0
@@ -34,6 +43,11 @@ class DeterministicRewards:
         return rew
 
 class Dummy(gym.Env):
+    """
+    A class environment inheriting gymnasium gym.Env.
+    The class serves as dummy for testing algorithms, where you can defined custom observation functions, rewards functions and more.
+    Using the default argument will result in an environment that uses DeterministicObservations() as obs_func and DeterministicRewards() as rew_func
+    """
     def __init__(self, obs_shape, obs_func=None, rew_func=None, done_func=None, trunc_func=None, info_func=None):
         self.cur_obs = None
         self.shape = obs_shape
@@ -85,7 +99,7 @@ class Dummy(gym.Env):
         return obs, rew, done, trunc, info
 
 class OldDummyWrapper(Dummy):
-    #wraps the DummyEnv class to configure it as an older version of gym environments
+    """wraps the Dummy class to configure it as an older version of gym environments (removes truncatedflag from outputs, and info flag when reseting)"""
     def __init__(self, env):
         self.env = env
 
@@ -98,7 +112,10 @@ class OldDummyWrapper(Dummy):
         return obs
 
 class EpisodeLength:
-    #episode ends after n steps (the nth+1 step returns done)
+    """
+    Class that can be used for the dummy's done_func.
+    The class will make each episode end after n steps (the environment's n+1 step will return done)
+    """
     def __init__(self, length):
         self.len = length
         self.count = 0

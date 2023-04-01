@@ -5,10 +5,14 @@ import numpy as np
 import copy
 
 class ActionSelector:
+    """
+    Action Selector class required by some agent classes
+    """
     def __call__(self, x):
         raise NotImplementedError
 
 class ArgmaxSelector(ActionSelector):
+    """Argmax action sampling"""
     def __init__(self):
         super().__init__()
 
@@ -16,6 +20,7 @@ class ArgmaxSelector(ActionSelector):
         return np.argmax(x,axis=1)
 
 class ProbabilitySelector(ActionSelector):
+    """Action sampling that uses the inputs as probabilies"""
     def __init__(self):
         super().__init__()
     
@@ -27,6 +32,7 @@ class ProbabilitySelector(ActionSelector):
 
 
 class EpsilonGreedySelector(ActionSelector):
+    """Epsilon Greedy sampling of actions"""
     def __init__(self, epsilon, selector=None):
         super().__init__()
         self.epsilon = epsilon
@@ -73,11 +79,13 @@ class TargetNet:
 
 
 class Agent:
+    """Agent class required for all Experience processing classes"""
     def __call__(self):
         raise NotImplementedError
 
 
 class BasicAgent(Agent):
+    """An agent that samples the action (single output returned by network) using ArgmaxSelector()"""
     def __init__(self, net, device="cpu", Selector= ArgmaxSelector(), preprocessing=float32_preprocessing):
         super().__init__()
         assert isinstance(Selector, ActionSelector)
@@ -95,6 +103,7 @@ class BasicAgent(Agent):
 
 
 class PolicyAgent(Agent):
+    """An agent that samples the action (from first argument returned by network) using ProbabilitySelector()"""
     def __init__(self, net, device="cpu", Selector= ProbabilitySelector(), preprocessing=float32_preprocessing):
         super().__init__()
         assert isinstance(Selector, ActionSelector)
@@ -112,4 +121,25 @@ class PolicyAgent(Agent):
         return actions
 
 
+class ContinuousNormalAgent(Agent):
+    """An agent that receives 3 matrices: mean, variance and other (usually value) 
+    and samples the actions using Normal/Gaussian distribution"""
+    def __init__(self, net, device="cpu", preprocessor=float32_preprocessing, clipping=True):
+        super().__init__()
+        self.net = net
+        self.device = device
+        self.preprocessor = preprocessor
+        self.clipping = clipping
 
+    @torch.no_grad()
+    def __call__(self, states):
+        states_v = self.preprocessor(states)
+        states_v = states_v.to(self.device)
+
+        mu_v, var_v, _ = self.net(states_v)
+        mu = mu_v.data.cpu().numpy()
+        sigma = torch.sqrt(var_v).data.cpu().numpy()
+        actions = np.random.normal(mu, sigma)
+        if self.clipping:
+            actions = np.clip(actions, -1, 1)
+        return actions

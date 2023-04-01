@@ -9,8 +9,12 @@ import numpy as np
 
 
 def unpack_batch(batch):
-    #Note: last_states batch does not include terminated states (states equal to None)
-    #This function assumes len(last_states) < 1 is handled properly during training
+    """
+    A class used to unpack a batch of experiences of type experience.Experience
+
+    NOTE: last_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
+     mask a torch.zero_like tensor and replace the values with last_states.
+    #This function assumes len(last_states) < 1 is handled properly during training"""
     states = []
     rewards = []
     actions = []
@@ -29,8 +33,12 @@ def unpack_batch(batch):
     return states, actions, rewards, last_states, not_dones
 
 def unpack_memorizedbatch(batch):
-    #Note: last_states batch does not include terminated states (states equal to None)
-    #This function assumes len(last_states) < 1 is handled properly during training
+    """
+    A class used to unpack a batch of experiences of type experience.MemorizedExperience
+
+    NOTE: last_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
+     mask a torch.zero_like tensor and replace the values with last_states.
+    #This function assumes len(last_states) < 1 is handled properly during training"""
     states = []
     rewards = []
     actions = []
@@ -49,10 +57,13 @@ def unpack_memorizedbatch(batch):
             not_dones.append(False)   
     return states, actions, rewards, last_states, not_dones, memories
 
-
 #backup
 class render_env(Wrapper):
-    #simple wrapper that keeps a rgb_array_list from last env reset
+    """
+    Simple wrapper class that keeps an rgb array list from last environment reset() inside the attribute: rframes.
+    This wrapper is mostly used along the ModelBackup class
+    
+    """
     def __init__(self, env):
         super().__init__(env)
         self.rframes = []
@@ -70,6 +81,14 @@ class render_env(Wrapper):
 
 
 class ModelBackup:
+
+    """
+    Class that creates torch.state_dict() of model passed as argument.
+    It stores the saves inside a directory called model_saves.
+    The class can also create videos of the agent if both an agent and a render environment are passed as arguments
+    (gym.Env wrapped inside utilities.render_env). 
+    """
+
     def __init__(self, ENV_NAME, iid, net, notify=True, render_env=None, agent=None, folder="model_saves", prefix="model_"):
         assert isinstance(iid, str)
         if render_env is None or agent is None and notify:

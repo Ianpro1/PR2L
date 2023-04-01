@@ -59,6 +59,9 @@ class SimpleReplayBuffer:
   
 #this addition can be made inside every agent class as internal states
 class MemorizedExperienceSource:
+    """
+    ExperienceSource with additional custom (User Defined) object stored in each Experience i.e. MemorizedExperience
+    """
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99):
         assert isinstance(agent, Agent)
         assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))
@@ -166,6 +169,16 @@ class MemorizedExperienceSource:
 #TODO SyncExperienceSource (does not have __decay_all_rewards / yields only 1 exp per iteration over envs)
 
 class ExperienceSource:
+    """
+    A class that yields experiences storing states, actions, rewards and "next" (the state that follows the action).
+    Rewards are each decayed like so: Q = r0 + r(1) * GAMMA^(1) + ... + r(n) * GAMMA^(n).
+    Actions are sampled using the agent that was passed as argument.
+
+    NOTE: Its a common practice in reinforcement learning to individually sample the agent's actions for each environment.
+    This class achieves better perfomance by sampling all actions at once for every environment. Hence, when an environment is
+    terminated before the others, the class will yield all the experiences that were stored for this environment. The user should
+    therefore expect every environment to be out of sync.
+    """
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99, track_rewards=True):
         assert isinstance(agent, Agent)
         assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))

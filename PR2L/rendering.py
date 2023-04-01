@@ -4,6 +4,9 @@ import numpy as np
 from gymnasium import Wrapper
 
 class RenderWrapper(Wrapper):
+    """
+    This render wrapper will send the render() output of the environment through the mp.Pipe() given as argument.
+    """
     def __init__(self, env, inconn, frame_skip=4):
         super().__init__(env)
         self.inconn = inconn
@@ -27,6 +30,9 @@ class RenderWrapper(Wrapper):
         return obs
 
 class SendimgWrapper(Wrapper):
+    """
+    This render wrapper will send the raw observation of the environment through the mp.Pipe() given as argument.
+    """
     #assumes the input is an rgb_array
     def __init__(self, env, inconn, frame_skip=4):
         #parameters-> env: gym.Env, inconn: in-connection of Pipe, frame_skip: sending observations every nth frame
@@ -50,6 +56,9 @@ class SendimgWrapper(Wrapper):
     
 
 def ChannelFirstPreprocessing(img):
+    """
+    Moves the first channel of an image to the back
+    """
     img = (img.transpose(2,1,0) * 255.).astype(np.uint8)
     return img
 
@@ -80,9 +89,13 @@ def HandleFrame(frame, screen, screen_size, preprocessing=None):
 
 
 def init_display(outconn, screen_size=None, preprocessing=None):
+
+    """
     #default img format is rgb_array as Height, Width and Channels 
-    #parameters-> outconn: receiving end of Pipeconnection 
-    #creates a pygame instance of rgb_array upon receive from a Pipe() (used for live rendering of agent)
+    #parameters-> outconn: receiving end of Pipeconnection (mp.Pipe())
+
+    This class creates a pygame window instance which uses the outputs of mp.Pipe() as frames for the rendering.
+    """
     assert isinstance(screen_size, (list, tuple, type(None)))
 
     if screen_size is None:
@@ -108,6 +121,9 @@ def init_display(outconn, screen_size=None, preprocessing=None):
 
 
 class ReplayWrapper(Wrapper):
+    """
+    This wrapper will build an episode of frame using render() and, once the environment terminated, will send it through the mp.Pipe()
+    """
     def __init__(self, env, queue, copy=False):
         super().__init__(env)
         self.queue = queue
@@ -134,7 +150,16 @@ class ReplayWrapper(Wrapper):
 
 
 def init_replay(queue, delay, screen_size=None, preprocessing=None):
+    """
+    #default img format is rgb_array as Height, Width and Channels 
+    #parameters-> outconn: receiving end of Pipeconnection (mp.Pipe())
 
+    This class creates a pygame window instance which uses the outputs of mp.Pipe() as frames for the rendering.
+    
+    NOTE: The difference between  init_display is that this class renders full episodes as opposed to individual frames received
+    from the mp.Pipe(). Hence, the episodes can be replayed using a custom delay (FPS) without too much bottleneck. This class should
+    be used with many environments in parralled and series, else the multiprocess bottleneck will be more apparent.
+    """
     assert isinstance(screen_size, (list, tuple, type(None)))
     
     if screen_size is None:

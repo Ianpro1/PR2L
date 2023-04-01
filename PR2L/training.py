@@ -7,6 +7,11 @@ from PR2L import utilities, agent
 
 #for Actor critic based Models
 def unpack_batch_A2C(batch, net, GAMMA=0.99, N_STEPS=2, device="cpu", value_index_pos=1):
+    """
+    Used to unpack batches of regular experiences (experience.Experience) and return the states, actions and Q_values.
+    
+    More specifically, this class is for Actor critic based Models
+    """
     states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
 
     states = agent.float32_preprocessing(states).to(device)
@@ -25,8 +30,13 @@ def unpack_batch_A2C(batch, net, GAMMA=0.99, N_STEPS=2, device="cpu", value_inde
     return states, actions, refs_q_v
 
 
-#for Simple DQN - using target net to argmax (Never tested, there might be unsqueezing to do)
 def unpack_batch_DQN_tgt(batch, tgt_net, GAMMA=0.99, N_STEPS=2, device="cpu"):
+    """
+    Used to unpack batches of regular experiences (experience.Experience) and return the states, actions and Q_values.
+
+    More specifically, this class is for Simple DQN models.
+    - using target net for argmax step (Dev - Never tested, there might be unsqueezing to do)
+    """
     states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
 
     states = agent.float32_preprocessing(states).to(device)
@@ -46,8 +56,13 @@ def unpack_batch_DQN_tgt(batch, tgt_net, GAMMA=0.99, N_STEPS=2, device="cpu"):
     return states, actions, refs_q_v
     
 
-#for Double DQNs - using main network to argmax (Never tested, there might be unsqueezing to do)
 def unpack_batch_DQN_double(batch, net, tgt_net, GAMMA=0.99, N_STEPS=2, device="cpu"):
+    """
+    Used to unpack batches of regular experiences (experience.Experience) and return the states, actions and Q_values.
+
+    More specifically, this class if for Double DQN models 
+    - using main network for argmax step (Dev - Never tested, there might be unsqueezing to do)
+    """
     states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
 
     states = agent.float32_preprocessing(states).to(device)
