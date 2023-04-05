@@ -128,8 +128,21 @@ class EpisodeLength:
             return False
 
 
-class Controller:
-    def __init__(self, action_shape, step_callback=print):
+class BasicController:
+    """
+    Basic Controller is a controller based on pygame that can be configured on the go by following the prompts.
+    It lets the user play and test environments using keyboard inputs.
+
+    Arguments: *action_shape is the fixed shape of the output that is passed into the user's *step_callback function.
+    *reload_callback is a custom callback function separate from the controller that can be called using '~' (if enabled,
+    it can be used to allow the user to reset the environment anytime). 
+
+    NOTE: to create custom controllers and load them instead of configurating them during runtime, the user can utilize the
+    loadController() method. It expects a list of inputs of the form: ['w', 'a', 's', 'd'] and a list of outputs of same length: 
+    [(1.0, [0]), (-1.0, [0]), (1.0, [1]), (-1.0, [1])] where the first index of each output represents: the output's value and
+    the second: the index which will be overwritten with the output's value in the final output passed to step_callback. 
+    """
+    def __init__(self, action_shape, step_callback=print, reload_callback = None):
         assert isinstance(action_shape, (list, tuple, np.ndarray))
         if isinstance(action_shape, np.ndarray) == False:
             self.action_shape = np.array(action_shape, copy=False)
@@ -140,6 +153,10 @@ class Controller:
         pygame.init()
         self.screen = pygame.display.set_mode((400, 400))
         pygame.display.set_caption("Controller")
+        if reload_callback is not None:
+            self.reload_callback = reload_callback
+        else:
+            self.reload_callback = lambda : print("Reload Callback Disabled!")
 
     def loadController(self, inputs, outputs):
         assert isinstance(inputs, (tuple, list))
@@ -174,6 +191,8 @@ class Controller:
                         input_index = self.inputs.index(event.unicode)
                         output = self.outputs[input_index]
                         pressed_keys[event.unicode] = output[0]
+                    elif event.unicode == '~':
+                        self.reload_callback()
                 if event.type == pygame.KEYUP:
                     if event.unicode in pressed_keys:
                         del pressed_keys[event.unicode]

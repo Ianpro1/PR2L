@@ -15,14 +15,19 @@ class custom_callback:
         self.env.render()
         if done:
             self.env.reset()
+    def reload(self):
+        self.env.reset()
 
-ctrl = p.Controller((2,), custom_callback(env))
+
+cb = custom_callback(env)
+ctrl = p.BasicController((2,), cb, cb.reload)
+
 inp = ['w', 'a', 's', 'd']
 out = [
-    [-1., [0]],
-    [-1., [1]],
     [1., [0]],
-    [1., [1]]
+    [1., [1]],
+    [-1., [0]],
+    [-1., [1]]
 ]
 ctrl.loadController(inp, out)
 ctrl.play(0)
