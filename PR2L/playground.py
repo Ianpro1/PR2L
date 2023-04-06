@@ -127,7 +127,6 @@ class EpisodeLength:
             self.count +=1
             return False
 
-
 class BasicController:
     """
     Basic Controller is a controller based on pygame that can be configured on the go by following the prompts.
@@ -281,5 +280,25 @@ class BasicController:
                             # add input value to the inputs list
                             inputs.append(event.unicode)
                             print(inputs) 
+
+class custom_ControllerCallback:
+    """
+    Basic controller callback example.
+    HOW TO USE: construct a controller instance
+    using a reference or the custom_ControllerCallback object as the step_callback argument and
+    a reference of custom_ControllerCallback.reload() as reload_callback argument.
+    """
+    def __init__(self, env):
+        self.env = env
+        self.env.reset()
+
+    def __call__(self, x):
+        x = np.array(x, copy=True)
+        _, _, done, _, _ = self.env.step(x)
+        self.env.render()
+        if done:
+            self.env.reset()
+    def reload(self):
+        self.env.reset()
 
 #TODO environment that verifies the contents of exp_source and or buffer
