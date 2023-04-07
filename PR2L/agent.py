@@ -82,6 +82,9 @@ class Agent:
     """Agent class required for all Experience processing classes"""
     def __call__(self):
         raise NotImplementedError
+    
+    def initial_state(self):
+        return None
 
 
 class BasicAgent(Agent):
@@ -95,11 +98,11 @@ class BasicAgent(Agent):
         self.preprocessing = preprocessing
 
     @torch.no_grad()
-    def __call__(self, x):
+    def __call__(self, x, internal_states):
         x = self.preprocessing(x)
         values = self.net(x.to(self.device))
         actions = self.selector(values.data.cpu().numpy())
-        return actions
+        return actions, internal_states
 
 
 class PolicyAgent(Agent):
@@ -113,12 +116,12 @@ class PolicyAgent(Agent):
         self.preprocessing = preprocessing
 
     @torch.no_grad()
-    def __call__(self, x):
+    def __call__(self, x, internal_states):
         x = self.preprocessing(x)
         act_v = self.net(x.to(self.device))[0]
         act_v = F.softmax(act_v, dim=1)
         actions = self.selector(act_v.data.cpu().numpy())
-        return actions
+        return actions, internal_states
 
 
 class ContinuousNormalAgent(Agent):
@@ -132,7 +135,7 @@ class ContinuousNormalAgent(Agent):
         self.clipping = clipping
 
     @torch.no_grad()
-    def __call__(self, states):
+    def __call__(self, states, internal_states):
         states_v = self.preprocessor(states)
         states_v = states_v.to(self.device)
 
@@ -142,4 +145,5 @@ class ContinuousNormalAgent(Agent):
         actions = np.random.normal(mu, sigma)
         if self.clipping:
             actions = np.clip(actions, -1, 1)
-        return actions
+        return actions, internal_states
+    

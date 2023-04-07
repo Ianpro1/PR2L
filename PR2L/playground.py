@@ -133,7 +133,7 @@ class BasicController:
     It lets the user play and test environments using keyboard inputs.
 
     Arguments: *action_shape is the fixed shape of the output that is passed into the user's *step_callback function.
-    *reload_callback is a custom callback function separate from the controller that can be called using '~' (if enabled,
+    *reload_callback is a custom callback function separate from the controller that can be called using '`' (if enabled,
     it can be used to allow the user to reset the environment anytime). 
 
     NOTE: to create custom controllers and load them instead of configurating them during runtime, the user can utilize the
@@ -141,11 +141,12 @@ class BasicController:
     [(1.0, [0]), (-1.0, [0]), (1.0, [1]), (-1.0, [1])] where the first index of each output represents: the output's value and
     the second: the index which will be overwritten with the output's value in the final output passed to step_callback. 
     """
-    def __init__(self, action_shape, step_callback=print, reload_callback = None):
+    def __init__(self, action_shape, step_callback=print, reload_callback = None, reload_key='`'):
         assert isinstance(action_shape, (list, tuple, np.ndarray))
         if isinstance(action_shape, np.ndarray) == False:
             self.action_shape = np.array(action_shape, copy=False)
         self.ndim = self.action_shape.ndim
+        self.r_key = reload_key
         self.outputs = []
         self.inputs = []
         self.step_callback = step_callback
@@ -165,6 +166,10 @@ class BasicController:
         self.outputs = outputs
 
     def makeController(self):
+        print("\n", "*"*25)
+        print("Manual Controller Setup")
+        print("\n", "*"*25)
+        print("\nPress ENTER to confirm your inputs or BACKSPACE to rewrite them.")
         self.__pycollect_inputs(self.inputs)
         size = len(self.inputs)
         self.__pycollect_outputs(self.ndim, self.inputs, self.outputs, size)
@@ -172,13 +177,13 @@ class BasicController:
         print("\nInputs: ", self.inputs)
         print("\nOutputs: ", self.outputs)
 
-    def play(self, delay):
+    def play(self, msDelay):
         # Dictionary to store currently pressed keys and their outputs
         pressed_keys = {}
 
         # Create a list with the same length as outputs and values set to 0
         while True:
-            pygame.time.wait(delay)
+            pygame.time.wait(msDelay)
             action = np.zeros(shape=self.action_shape)
 
             for event in pygame.event.get():
@@ -190,7 +195,7 @@ class BasicController:
                         input_index = self.inputs.index(event.unicode)
                         output = self.outputs[input_index]
                         pressed_keys[event.unicode] = output[0]
-                    elif event.unicode == '~':
+                    elif event.unicode == self.r_key:
                         self.reload_callback()
                 if event.type == pygame.KEYUP:
                     if event.unicode in pressed_keys:
@@ -208,6 +213,7 @@ class BasicController:
     def __pycollect_outputs(dim, inputs, outputs, size):
         
         while True:
+            print("\n", "*"*25)
             #condition
             if len(outputs) == size:
                 break
@@ -218,53 +224,78 @@ class BasicController:
             out = []
             cur_val = ''
             cur_b = True
-            print("\nEnter the output value for input at index: ", len(outputs))
+            prompt = "\nEnter the output value for your key-input: '" + inputs[len(outputs)] + "'"
+            print(prompt)
+            message = "\nCurrent output: "
+            print(message, end="")
             while cur_b:
                 for event in pygame.event.get():
                     if event.type == pygame.KEYDOWN:
                         keyname = pygame.key.name(event.key)
                         if keyname.isdigit() or event.unicode == '.' or event.unicode == '-':
                             cur_val += event.unicode
-                            print("\nPress ENTER to confirm or BACKSPACE to start-over")
-                            print("\nCurrent output: ", cur_val)
+                            message += cur_val[-1]
+                            if (len(cur_val) > 4):
+                                print("\nPress ENTER to confirm or BACKSPACE to start-over")
+                                print(message)
+                                continue
+                            print(cur_val[-1], end="", flush=True)
                         elif event.key == pygame.K_RETURN:
                             try: 
                                 out.append(float(cur_val))
                             except:
                                 print("\nOutput must be int or float!")
                                 cur_val = ''
+                                message = "\nCurrent output: "
+                                print(message, end="")
                                 continue
                             else:
                                 cur_b = False
                         elif event.key == pygame.K_BACKSPACE:
+                            print("\n<back>")
                             cur_val = ''
-                            print("\nEnter the output value for input at index: ", len(outputs))
+                            message = "\nCurrent output: "
+                            print(prompt)
+                            print(message, end="")
             
             cur_b = True
             indices = []
-            print("\nEnter the output's corresponding indices: ")
+            double_backspace = False
+            print("\nEnter the output's corresponding index for the final output: ")
             while cur_b:
                 for event in pygame.event.get():
                     if event.type == pygame.KEYDOWN:
                         keyname = pygame.key.name(event.key)
                         if keyname.isdigit():
+                            print("\nCurrent output: ", cur_val)
+                            double_backspace = False
                             if len(indices) == dim:
-                                print("\nindices are already matching with ndim! Press ENTER to continue or BACKSPACE to start-over:")
+                                print("\nindex is already matching with ndim! Press ENTER to continue or BACKSPACE to start-over:")
                                 continue
                             indices.append(int(event.unicode))
-                            print("current indices: ", indices)
-                        elif event.key == pygame.K_RETURN:
+                            print("with index: ", indices)
+                        elif event.key == pygame.K_RETURN and indices:
+                            double_backspace = False
                             cur_b = False
                             out.append(indices)
                         elif event.key == pygame.K_BACKSPACE:
+                            print("<back>")
+                            if double_backspace:
+                                print("   <back>")
+                                cur_b = False
+                                continue
+                            double_backspace = True
                             indices = []
-                            print("current indices: ", indices)
+                            print("\nCurrent output: ", cur_val)
+                            print("with index: ", indices)
 
+            if double_backspace:
+                continue
             outputs.append(out)
 
     @staticmethod
     def __pycollect_inputs(inputs):
-            print("\nEnter input values to use for controller: ")
+            print("\nEnter input values to map onto the controller: ")
             print(inputs)
             while True:
                 # wait for user input
@@ -274,14 +305,15 @@ class BasicController:
                             # user pressed Enter, break out of the loop
                             return
                         elif event.key == pygame.K_BACKSPACE:
-                            inputs = []
+                            print("<back>")
+                            inputs.clear()
                             print(inputs)
                         elif event.key != pygame.K_RETURN:
                             # add input value to the inputs list
                             inputs.append(event.unicode)
                             print(inputs) 
 
-class custom_ControllerCallback:
+class CustomControllerCallback:
     """
     Basic controller callback example.
     HOW TO USE: construct a controller instance
@@ -293,7 +325,6 @@ class custom_ControllerCallback:
         self.env.reset()
 
     def __call__(self, x):
-        x = np.array(x, copy=True)
         _, _, done, _, _ = self.env.step(x)
         self.env.render()
         if done:

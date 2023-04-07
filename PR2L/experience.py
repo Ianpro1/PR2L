@@ -58,6 +58,7 @@ class SimpleReplayBuffer:
         return iter(self.buffer)
   
 #this addition can be made inside every agent class as internal states
+#TODO: add _internal_states
 class MemorizedExperienceSource:
     """
     ExperienceSource with additional custom (User Defined) object stored in each Experience i.e. MemorizedExperience
@@ -207,6 +208,7 @@ class ExperienceSource:
         _states = []
         _rewards = []
         _actions = []
+        _internal_states = []
         cur_obs = []
         for e in self.env:
             _states.append(deque(maxlen=self.n_steps))
@@ -214,9 +216,10 @@ class ExperienceSource:
             _actions.append(deque(maxlen=self.n_steps))
             obs, _ = e.reset()
             cur_obs.append(obs)
+            _internal_states.append(self.agent.initial_state())
 
         while True:   
-            actions = self.agent(cur_obs)
+            actions, _internal_states = self.agent(cur_obs, _internal_states)
             for i, env in enumerate(self.env):
                 nextobs, reward, done, _, _ = env.step(actions[i])
                 _actions[i].append(actions[i])
@@ -234,6 +237,7 @@ class ExperienceSource:
                     self.n_eps_done += 1
                     obs, _ = env.reset()
                     cur_obs[i] = obs
+                    _internal_states[i] = None
                     continue
                 
                 cur_obs[i] = nextobs
