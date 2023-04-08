@@ -8,6 +8,7 @@ from PR2L import experience, utilities, agent
 from torch import optim
 import torch.nn.functional as F
 from collections import deque
+import time 
 
 class DDPGActor(nn.Module):
     def __init__(self, obs_size, act_size, HIDDEN1=400, HIDDEN2=300):
@@ -110,12 +111,14 @@ if __name__ == "__main__":
     modelmanager.load()
 
     #make sure to enable OU-noise when training
-    _agent = AgentDDPG(act_net, device, ou_enabled=False)
+    _agent = AgentDDPG(act_net, device, ou_enabled=True, ou_epsilon=1.0)
     exp_source = experience.ExperienceSource(envs, _agent, GAMMA = GAMMA, n_steps=N_STEPS)
 
     #loop to test the network
     if True:
-        for exp in exp_source:
+        test_agent = AgentDDPG(act_net, device, ou_enabled=False, ou_epsilon=0.05)
+        test_exp_source = experience.ExperienceSource(envs, test_agent, GAMMA = GAMMA, n_steps=N_STEPS)
+        for exp in test_exp_source:
             continue
 
     buffer = experience.SimpleReplayBuffer(exp_source, REPLAY_BUFFER_SIZE)
