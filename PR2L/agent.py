@@ -47,8 +47,11 @@ class EpsilonGreedySelector(ActionSelector):
         return actions
 
 
-def preprocessing(x):
-    return torch.tensor(np.array(x, copy=False))
+def preprocessing(x, dtype=None):
+    if dtype is None:
+        return torch.tensor(np.array(x, copy=False))
+    else:
+        return torch.tensor(np.array(x, copy=False), dtype=dtype)
 
 def float32_preprocessing(x):
     return torch.FloatTensor(np.array(x, copy=False))

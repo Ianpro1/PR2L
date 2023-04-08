@@ -34,7 +34,7 @@ class SimpleReplayBuffer:
     
     def populate(self, n_samples):
         for _ in range(n_samples):
-            entry = next(self.experience_source_iter)
+            entry = next(self.exp_source_iter)
             self._add(entry)
     
     def populate_episodes(self, n_episodes):

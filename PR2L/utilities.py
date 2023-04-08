@@ -7,18 +7,19 @@ from gym import Wrapper
 import cv2
 import numpy as np
 
-
 def unpack_batch(batch):
     """
     A class used to unpack a batch of experiences of type experience.Experience
 
-    NOTE: last_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
-     mask a torch.zero_like tensor and replace the values with last_states.
-    #This function assumes len(last_states) < 1 is handled properly during training"""
+    Returns the following: states, actions, rewards, next_states, not_dones
+
+    NOTE: next_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
+     mask a torch.zero_like tensor and replace the values with next_states.
+    #This function assumes len(next_states) < 1 is handled properly during training"""
     states = []
     rewards = []
     actions = []
-    last_states = []
+    next_states = []
     not_dones = []
     for exp in batch:
         states.append(exp.state)
@@ -27,22 +28,22 @@ def unpack_batch(batch):
         
         if exp.next is not None:
             not_dones.append(True)
-            last_states.append(exp.next) 
+            next_states.append(exp.next) 
         else:
             not_dones.append(False)   
-    return states, actions, rewards, last_states, not_dones
+    return states, actions, rewards, next_states, not_dones
 
 def unpack_memorizedbatch(batch):
     """
     A class used to unpack a batch of experiences of type experience.MemorizedExperience
 
-    NOTE: last_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
-     mask a torch.zero_like tensor and replace the values with last_states.
-    #This function assumes len(last_states) < 1 is handled properly during training"""
+    NOTE: next_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
+     mask a torch.zero_like tensor and replace the values with next_states.
+    #This function assumes len(next_states) < 1 is handled properly during training"""
     states = []
     rewards = []
     actions = []
-    last_states = []
+    next_states = []
     not_dones = []
     memories = []
     for exp in batch:
@@ -52,10 +53,10 @@ def unpack_memorizedbatch(batch):
         memories.append(exp.memory)
         if exp.next is not None:
             not_dones.append(True)
-            last_states.append(exp.next) 
+            next_states.append(exp.next) 
         else:
             not_dones.append(False)   
-    return states, actions, rewards, last_states, not_dones, memories
+    return states, actions, rewards, next_states, not_dones, memories
 
 #backup
 class render_env(Wrapper):
@@ -91,6 +92,7 @@ class ModelBackup:
 
     def __init__(self, ENV_NAME, iid, net, notify=True, render_env=None, agent=None, folder="model_saves", prefix="model_"):
         assert isinstance(iid, str)
+
         if render_env is None or agent is None and notify:
             self.disable_mkrender = True
             print("Warning, argument missing for ModelBackup.mkrender and has been disabled")
@@ -162,3 +164,80 @@ class ModelBackup:
                 video.write(frame)
             video.release()
             return 1
+        
+
+class ModelBackupManager:
+    """"
+    Variant of ModelBackup: allows backup creation and (Not yet) loading of multiple networks at once.
+    """
+    def __init__(self,ENV_ID,iid, net, directory="model_saves", notify=True):
+        assert isinstance(iid, str)
+        assert isinstance(ENV_ID, str)
+        if isinstance(net, (list,tuple)) == False:
+            self.net = [net]
+        else:
+            self.net = net
+
+        self.path = os.path.join(directory, ENV_ID, iid)
+        self.notify = notify
+
+    #TODO add parameter backup
+    def save(self, parameters=None):
+        save_dir = os.path.join(self.path, "state_dicts", str(datetime.datetime.now().date()))
+        
+        for network in self.net:
+            if os.path.isdir(save_dir) == False:
+                os.makedirs(save_dir)
+            modelname = str(type(network).__name__) + datetime.datetime.now().strftime("-%H-%M") + ".pt"
+            temp_path = os.path.join(save_dir, modelname)
+            torch.save(network.state_dict(), temp_path)
+            if self.notify:
+                print("(ModelBackupManager) created: " + temp_path)
+
+    def load(self):
+        # Find the latest dates folder within self.path/state_dicts
+        sd_path = os.path.join(self.path, "state_dicts")
+        dates_folders = [f for f in os.listdir(sd_path) if os.path.isdir(os.path.join(sd_path, f)) and f.startswith('20')]
+        if not dates_folders:
+            raise FileNotFoundError(f"No matching directory found in {sd_path}")
+        latest_date_folder = max(dates_folders)
+
+        # Find the files that were created the latest with matching net name
+        net_files = {}
+        previous = ''
+        previous_name = ''
+        expected_len = len(self.net)
+        for net_class in self.net:
+            net_name = str(type(net_class).__name__)
+            matching_files = [f for f in os.listdir(os.path.join(sd_path, latest_date_folder)) if f.startswith(net_name) and f.endswith('.pt')]
+            if not matching_files:
+                raise FileNotFoundError(f"No matching file found for {net_name} in {sd_path}/{latest_date_folder}")
+            
+            latest_save = ''
+            latest = ''
+            for f in matching_files:
+                timestamp = f[-8:-3]
+                if timestamp > latest:
+                    latest = timestamp
+                    latest_save = f
+
+            if latest != previous and previous != '':
+                raise ValueError(f"Timestamp for {latest_save} does not match with: {previous_save}")
+            
+            previous_save = latest_save
+            previous = latest
+            net_files[net_name] = os.path.join(sd_path, latest_date_folder, latest_save)           
+
+        if len(net_files) != expected_len:
+            raise ValueError(f"Expected to find {expected_len} files but found {len(net_files)}")
+        
+        if self.notify:
+            print("(ModelBackupManager) Loading the following models: ", net_files)
+        for net in self.net:
+            net.load_state_dict(torch.load(net_files[type(net).__name__]))
+
+
+
+
+
+
