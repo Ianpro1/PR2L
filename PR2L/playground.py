@@ -161,7 +161,7 @@ class BasicController:
     def loadController(self, inputs, outputs):
         assert isinstance(inputs, (tuple, list))
         self.inputs = inputs
-        assert isinstance(outputs[0][0], float)
+        assert isinstance(outputs[0][0], (float, int))
         assert isinstance(outputs[0][1], (list, tuple))
         self.outputs = outputs
 

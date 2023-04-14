@@ -79,12 +79,11 @@ class AgentDDPG(Agent):
         return actions, new_a_states
 
 
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-ENV_NUM = 50
+device = "cpu" if torch.cuda.is_available() else "cpu"
+ENV_NUM = 30
 REPLAY_BUFFER_SIZE = 10000
 LEARNING_RATE = 1e-4
-BATCH_SIZE = 500
+BATCH_SIZE = 32
 N_STEPS = 4
 GAMMA = 0.99
 APIRATE = 30
@@ -108,14 +107,14 @@ if __name__ == "__main__":
     print(act_net)
 
     modelmanager = utilities.ModelBackupManager(ENV_ID, "DDPG_001", [act_net, crt_net])
-    modelmanager.load()
+    #modelmanager.load()
 
     #make sure to enable OU-noise when training
     _agent = AgentDDPG(act_net, device, ou_enabled=True, ou_epsilon=1.0)
-    exp_source = experience.ExperienceSource(envs, _agent, GAMMA = GAMMA, n_steps=N_STEPS)
+    exp_source = experience.ScarsedExperienceSource(100, envs, _agent, GAMMA = GAMMA, n_steps=N_STEPS)
 
     #loop to test the network
-    if True:
+    if False:
         test_agent = AgentDDPG(act_net, device, ou_enabled=False, ou_epsilon=0.05)
         test_exp_source = experience.ExperienceSource(envs, test_agent, GAMMA = GAMMA, n_steps=N_STEPS)
         for exp in test_exp_source:

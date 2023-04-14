@@ -4,7 +4,7 @@ import gymnasium
 from collections import namedtuple, deque
 from .agent import Agent
 import numpy as np
-
+import math
 Experience = namedtuple("Experience", ("state", "action", "reward", "next"))
 
 MemorizedExperience = namedtuple("MemorizedExperience", ("state", "action", "reward", "next", "memory")) 
@@ -56,9 +56,10 @@ class SimpleReplayBuffer:
 
     def __iter__(self):
         return iter(self.buffer)
-  
+
 #this addition can be made inside every agent class as internal states
 #TODO: add _internal_states
+#change Memorized ExperienceSource to use DequeSource but compare performence between them!
 class MemorizedExperienceSource:
     """
     ExperienceSource with additional custom (User Defined) object stored in each Experience i.e. MemorizedExperience
@@ -169,87 +170,29 @@ class MemorizedExperienceSource:
 #TODO EpisodeSource (stores episode instead of experiences)
 #TODO SyncExperienceSource (does not have __decay_all_rewards / yields only 1 exp per iteration over envs)
 
-class ExperienceSource:
+class DequeSource:
     """
-    A class that yields experiences storing states, actions, rewards and "next" (the state that follows the action).
-    Rewards are each decayed like so: Q = r0 + r(1) * GAMMA^(1) + ... + r(n) * GAMMA^(n).
-    Actions are sampled using the agent that was passed as argument.
+    Parent class for all source class.
 
-    NOTE: Its a common practice in reinforcement learning to individually sample the agent's actions for each environment.
-    This class achieves better perfomance by sampling all actions at once for every environment. Hence, when an environment is
-    terminated before the others, the class will yield all the experiences that were stored for this environment. The user should
-    therefore expect every environment to be out of sync.
+    Note for devs: This class allows for decay_all_rewards (used when an environment is terminated),
+    decay_oldest_reward (used when the deque is full of experience), sum_rewards_steps (should be called
+      upon every reset and check that track_rewards is True because this is not implemented internally),
+      pop_rewards_steps (returns: rewards and steps as zipped list)
     """
-    def __init__(self, env, agent, n_steps=2, GAMMA=0.99, track_rewards=True):
-        assert isinstance(agent, Agent)
-        assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))
-                
-        self.n_steps = n_steps
-
-        if isinstance(env, (list, tuple)):
-            self.env = env
-            self.env_len = len(env)
-        else: 
-            self.env = [env]
-            self.env_len = 1
-        self.agent = agent   
-        self.track_rewards = track_rewards
-
+    def __init__(self, ENV_NUM, GAMMA=0.99, track_rewards=True):
         if track_rewards:
-            self.tot_reward = [0.]*self.env_len
+            self.tot_reward = [0.]*ENV_NUM
             self.tot_rewards = []
-            self.tot_step = [0.]*self.env_len
+            self.tot_step = [0.]*ENV_NUM
             self.tot_steps = []
-
+        self.track_rewards = track_rewards
         self.gamma = GAMMA
         self.n_eps_done = 0
 
     def __iter__(self):
-        _states = []
-        _rewards = []
-        _actions = []
-        _internal_states = []
-        cur_obs = []
-        for e in self.env:
-            _states.append(deque(maxlen=self.n_steps))
-            _rewards.append(deque(maxlen=self.n_steps)) #lists are slower than deque (13% slower)
-            _actions.append(deque(maxlen=self.n_steps))
-            obs, _ = e.reset()
-            cur_obs.append(obs)
-            _internal_states.append(self.agent.initial_state())
-
-        while True:   
-            actions, _internal_states = self.agent(cur_obs, _internal_states)
-            for i, env in enumerate(self.env):
-                nextobs, reward, done, _, _ = env.step(actions[i])
-                _actions[i].append(actions[i])
-                _rewards[i].append(reward)
-                _states[i].append(cur_obs[i])
-                if self.track_rewards:
-                    self.__sum_rewards_steps(reward, done, i)
-                if done:
-                    #decay all
-                    decayed = self.__decay_all_rewards(_rewards[i])
-                    _rewards[i].clear()
-                    for r_id in range(1, len(decayed)+1):
-                        exp = Experience(_states[i].popleft(), _actions[i].popleft(), decayed[-r_id], None)
-                        yield exp
-                    self.n_eps_done += 1
-                    obs, _ = env.reset()
-                    cur_obs[i] = obs
-                    _internal_states[i] = None
-                    continue
-                
-                cur_obs[i] = nextobs
-
-                if len(_actions[i]) == self.n_steps:
-                    #decay oldest
-                    self.__decay_oldest_reward(_rewards[i])
-
-                    exp = Experience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), nextobs)
-                    yield exp
-
-    def __decay_all_rewards(self, rewards):
+        raise NotImplementedError
+    
+    def decay_all_rewards(self, rewards):
         prev = 0.0
         res = []
         for r in reversed(rewards):
@@ -258,13 +201,13 @@ class ExperienceSource:
             prev = r * self.gamma
         return res
 
-    def __decay_oldest_reward(self, rewards):
+    def decay_oldest_reward(self, rewards):
         tot = 0.0
         for r in reversed(rewards):
              tot = r + tot* self.gamma
         rewards[0] = tot
 
-    def __sum_rewards_steps(self, reward, done, env_id):
+    def sum_rewards_steps(self, reward, done, env_id):
         #keeps track of rewards and steps
         self.tot_step[env_id] += 1
         self.tot_reward[env_id] += reward
@@ -280,5 +223,178 @@ class ExperienceSource:
         if res:
             self.tot_rewards.clear()
             self.tot_steps.clear()
-        return res  
+        return res
 
+class ExperienceSource(DequeSource):
+    """
+    A class that yields experiences storing states, actions, rewards and "next" (the state that follows the action).
+    Rewards are each decayed like so: Q = r0 + r(1) * GAMMA^(1) + ... + r(n) * GAMMA^(n).
+    Actions are sampled using the agent that was passed as argument.
+
+    NOTE: Its a common practice in reinforcement learning to individually sample the agent's actions for each environment.
+    This class achieves better perfomance by sampling all actions at once for every environment. Hence, when an environment is
+    terminated before the others, the class will yield all the experiences that were stored for this environment. The user should
+    therefore expect every environment to be out of sync.
+    """
+    def __init__(self, env, agent, n_steps=2, GAMMA=0.99, track_rewards=True):
+        assert isinstance(agent, Agent)
+        assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))
+        
+        self.n_steps = n_steps
+
+        if isinstance(env, (list, tuple)):
+            self.env = env
+            ENV_NUM = len(env)
+        else: 
+            self.env = [env]
+            ENV_NUM = 1
+        self.agent = agent   
+        super().__init__(ENV_NUM, GAMMA, track_rewards)
+
+    def __iter__(self):
+        _states = []
+        _rewards = []
+        _actions = []
+        _internal_states = []
+        cur_obs = []
+        for e in self.env:
+            _states.append(deque(maxlen=self.n_steps))
+            _rewards.append(deque(maxlen=self.n_steps)) #lists are slower than deque (about 20% slower)
+            _actions.append(deque(maxlen=self.n_steps))
+            obs, _ = e.reset()
+            cur_obs.append(obs)
+            _internal_states.append(self.agent.initial_state())
+
+        while True:   
+            actions, _internal_states = self.agent(cur_obs, _internal_states)
+            for i, env in enumerate(self.env):
+                nextobs, reward, done, _, _ = env.step(actions[i])
+                _actions[i].append(actions[i])
+                _rewards[i].append(reward)
+                _states[i].append(cur_obs[i])
+                if self.track_rewards:
+                    self.sum_rewards_steps(reward, done, i)
+                if done:
+                    #decay all
+                    decayed = self.decay_all_rewards(_rewards[i])
+                    _rewards[i].clear()
+                    for r_id in range(1, len(decayed)+1):
+                        exp = Experience(_states[i].popleft(), _actions[i].popleft(), decayed[-r_id], None)
+                        yield exp
+                    self.n_eps_done += 1
+                    obs, _ = env.reset()
+                    cur_obs[i] = obs
+                    _internal_states[i] = None
+                    continue
+                
+                cur_obs[i] = nextobs
+
+                if len(_actions[i]) == self.n_steps:
+                    #decay oldest
+                    self.decay_oldest_reward(_rewards[i])
+                    exp = Experience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), nextobs)
+                    yield exp 
+
+class ScarsedExperienceSource(DequeSource):
+    """
+    (See ExperienceSource for details about algorithm) 
+    ScarsedExperienceSource performs random steps per environments before yielding.
+    """
+    def __init__(self, max_steps, env, agent, n_steps=2, GAMMA=0.99, track_rewards=True):
+        assert isinstance(agent, Agent)
+        assert isinstance(env, (gym.Env,gymnasium.Env, list, tuple))
+        assert isinstance(max_steps, int)
+        self.n_steps = n_steps
+        self.max_steps = max_steps
+        if isinstance(env, (list, tuple)):
+            self.env = env
+            ENV_NUM = len(env)
+        else: 
+            self.env = [env]
+            ENV_NUM = 1
+        self.agent = agent   
+        super().__init__(ENV_NUM, GAMMA, track_rewards)
+
+    def __iter__(self):
+        _states = []
+        _rewards = []
+        _actions = []
+        _internal_states = []
+        cur_obs = []
+        for e in self.env:
+            _states.append(deque(maxlen=self.n_steps))
+            _rewards.append(deque(maxlen=self.n_steps)) #lists are slower than deque (about 20% slower)
+            _actions.append(deque(maxlen=self.n_steps))
+            obs, _ = e.reset()
+            cur_obs.append(obs)
+            _internal_states.append(self.agent.initial_state())
+
+        #generate steps
+        eval_steps = np.random.randint(low=0, high=self.max_steps, size=len(self.env))
+        #perform steps
+        eval_states = {}
+        beval = True
+        while beval:
+            actions, _internal_states = self.agent(cur_obs, _internal_states)
+            for i, env in enumerate(self.env):
+                if len(eval_states) == len(self.env):
+                    beval = False
+                    break
+                if eval_steps[i] == -1:
+                    continue
+                elif eval_steps[i] <= 0:
+                    eval_steps[i] = -1
+                    eval_states[i] = _internal_states[i]
+                    continue
+
+                nextobs, reward, done, _, _ = env.step(actions[i])
+                eval_steps[i] -= 1
+                _actions[i].append(actions[i])
+                _rewards[i].append(reward)
+                _states[i].append(cur_obs[i])
+                if done:
+                    _rewards[i].clear()
+                    obs, _ = env.reset()
+                    cur_obs[i] = obs
+                    _internal_states[i] = None
+                cur_obs[i] = nextobs
+
+        #reinstall lost internal_states
+        for key,value in eval_states.items():
+            _internal_states[key] = value
+
+        #delete temp. variables
+        del beval
+        del eval_states
+        del eval_steps
+
+        #yield
+        while True:   
+            actions, _internal_states = self.agent(cur_obs, _internal_states)
+            for i, env in enumerate(self.env):
+                nextobs, reward, done, _, _ = env.step(actions[i])
+                _actions[i].append(actions[i])
+                _rewards[i].append(reward)
+                _states[i].append(cur_obs[i])
+                if self.track_rewards:
+                    self.sum_rewards_steps(reward, done, i)
+                if done:
+                    #decay all
+                    decayed = self.decay_all_rewards(_rewards[i])
+                    _rewards[i].clear()
+                    for r_id in range(1, len(decayed)+1):
+                        exp = Experience(_states[i].popleft(), _actions[i].popleft(), decayed[-r_id], None)
+                        yield exp
+                    self.n_eps_done += 1
+                    obs, _ = env.reset()
+                    cur_obs[i] = obs
+                    _internal_states[i] = None
+                    continue
+                
+                cur_obs[i] = nextobs
+
+                if len(_actions[i]) == self.n_steps:
+                    #decay oldest
+                    self.decay_oldest_reward(_rewards[i])
+                    exp = Experience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), nextobs)
+                    yield exp 
