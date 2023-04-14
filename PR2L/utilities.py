@@ -170,14 +170,14 @@ class ModelBackupManager:
     """"
     Variant of ModelBackup: allows backup creation and (Not yet) loading of multiple networks at once.
     """
-    def __init__(self,ENV_ID,iid, net, directory="model_saves", notify=True):
+    def __init__(self,ENV_ID,iid, net, directory="model_saves", notify=True, error=True):
         assert isinstance(iid, str)
         assert isinstance(ENV_ID, str)
         if isinstance(net, (list,tuple)) == False:
             self.net = [net]
         else:
             self.net = net
-
+        self.error = error
         self.path = os.path.join(directory, ENV_ID, iid)
         self.notify = notify
 
@@ -199,6 +199,8 @@ class ModelBackupManager:
         sd_path = os.path.join(self.path, "state_dicts")
         dates_folders = [f for f in os.listdir(sd_path) if os.path.isdir(os.path.join(sd_path, f)) and f.startswith('20')]
         if not dates_folders:
+            if self.error == False:
+                return None
             raise FileNotFoundError(f"No matching directory found in {sd_path}")
         latest_date_folder = max(dates_folders)
 
@@ -211,6 +213,8 @@ class ModelBackupManager:
             net_name = str(type(net_class).__name__)
             matching_files = [f for f in os.listdir(os.path.join(sd_path, latest_date_folder)) if f.startswith(net_name) and f.endswith('.pt')]
             if not matching_files:
+                if self.error == False:
+                    return None
                 raise FileNotFoundError(f"No matching file found for {net_name} in {sd_path}/{latest_date_folder}")
             
             latest_save = ''
@@ -222,6 +226,8 @@ class ModelBackupManager:
                     latest_save = f
 
             if latest != previous and previous != '':
+                if self.error == False:
+                    return None
                 raise ValueError(f"Timestamp for {latest_save} does not match with: {previous_save}")
             
             previous_save = latest_save
@@ -229,6 +235,8 @@ class ModelBackupManager:
             net_files[net_name] = os.path.join(sd_path, latest_date_folder, latest_save)           
 
         if len(net_files) != expected_len:
+            if self.error == False:
+                    return None
             raise ValueError(f"Expected to find {expected_len} files but found {len(net_files)}")
         
         if self.notify:
