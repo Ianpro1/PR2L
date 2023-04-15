@@ -19,10 +19,10 @@ PREPROCESSING: The agent uses the same preprocessing as the above model.
 A Deep Deterministic Policy Gradient agent playing Tosser: a MuJoCo task/environment by openai.
 <img src="https://github.com/Ianpro1/PR2L/blob/master/GIF/TosserCPPGIF.gif" width="600">
 
-#INSTALLATION
+#### INSTALLATION
 >git clone https://github.com/Ianpro1/PR2L
->pip install ./PR2L
 >
+>pip install ./PR2L
 
 _Versions and Dependencies: PyTorch Cuda 11.6, Python 3.10.8, gym 0.26.2, Pygame 2.1.2 and gymnasium 0.27.1_
 
