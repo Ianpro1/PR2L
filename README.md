@@ -17,7 +17,7 @@ PREPROCESSING: The agent uses the same preprocessing as the above model.
 
 ### DDPG on Tosser
 A Deep Deterministic Policy Gradient agent playing tosser, an continous space environment by openai.
-<img src="https://github.com/Ianpro1/PR2L/blob/master/GIF/TosserCPPGIF.gif" width="400">
+<img src="https://github.com/Ianpro1/PR2L/blob/master/GIF/TosserCPPGIF.gif" width="600">
 
 _Versions and Dependencies: PyTorch Cuda 11.6, Python 3.10.8, gym 0.26.2, Pygame 2.1.2 and gymnasium 0.27.1_
 
