@@ -107,15 +107,15 @@ if __name__ == "__main__":
     print(act_net)
 
     modelmanager = utilities.ModelBackupManager(ENV_ID, "DDPG_001", [act_net, crt_net])
-    #modelmanager.load()
+    modelmanager.load()
 
     #make sure to enable OU-noise when training
     _agent = AgentDDPG(act_net, device, ou_enabled=True, ou_epsilon=1.0)
     exp_source = experience.ScarsedExperienceSource(100, envs, _agent, GAMMA = GAMMA, n_steps=N_STEPS)
 
     #loop to test the network
-    if False:
-        test_agent = AgentDDPG(act_net, device, ou_enabled=False, ou_epsilon=0.05)
+    if True:
+        test_agent = AgentDDPG(act_net, device, ou_enabled=True, ou_epsilon=0.01)
         test_exp_source = experience.ExperienceSource(envs, test_agent, GAMMA = GAMMA, n_steps=N_STEPS)
         for exp in test_exp_source:
             continue
