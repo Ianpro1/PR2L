@@ -15,8 +15,15 @@ PREPROCESSING: The agent uses the same preprocessing as the above model.
 
 <img src="https://github.com/Ianpro1/RL-agents/blob/master/GIF/Freeway.gif" width="400">
 
+### DDPG on Tosser
+A Deep Deterministic Policy Gradient agent playing Tosser: a MuJoCo task/environment by openai.
+<img src="https://github.com/Ianpro1/PR2L/blob/master/GIF/TosserCPPGIF.gif" width="600">
 
+#### INSTALLATION
+>git clone https://github.com/Ianpro1/PR2L
+>
+>pip install ./PR2L
 
-_Versions and Dependencies: PyTorch Cuda 11.6, Python 3.10.8, gym 0.26.2, Pygame 2.1.2 and gymnasium 0.27.1_
+_Versions and Dependencies (NOT INCLUDED IN PACKAGE): PyTorch Cuda 11.6, Python 3.10.8, gym 0.26.2, Pygame 2.1.2 and gymnasium 0.27.1_ (gymnasium is recommanded over gym)
 
-<sup>*Most dependencies will work in other versions with the exception of gym/gymnasium (the library handles truncated flags [Not Yet], therefore older versions are not supported.)</sup>
+<sup>*Most dependencies will work at different versions with the exception of gym/gymnasium (the library handles truncated flags [Not Yet], therefore older versions are not supported.)</sup>
