@@ -75,7 +75,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 ENV_NUM = 40
 REPLAY_BUFFER_SIZE = 50000
 LEARNING_RATE = 1e-4
-BATCH_SIZE = 200
+BATCH_SIZE = 32
 N_STEPS = 4
 GAMMA = 0.99
 APIRATE = 30
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     score = deque(maxlen=100)
     running = True
 
-    #plot = pltprint(delay=0.01, color='blue', alpha=0.3)
+    plot = pltprint(delay=0.01, color='blue', alpha=0.3)
     fps = perform.FPScounter()
     while running:
         
@@ -200,8 +200,8 @@ if __name__ == "__main__":
         #project target distribution for last_states
 
         proj_next_v_distr = distr_projection(next_v_distr, rewards, not_dones, gamma=GAMMA**N_STEPS, device=device)
-        #if idx % 20 == 0:
-           # plot.drawbuffer(proj_next_v_distr[0].data.cpu().numpy(), 10)
+        if idx % 20 == 0:
+            plot.drawbuffer(proj_next_v_distr[0].data.cpu().numpy(), 10)
 
         #get log_prob of distribution values * projected distr. 
         logprob_distr_v = -F.log_softmax(crt_v_distr, dim=1) * proj_next_v_distr
