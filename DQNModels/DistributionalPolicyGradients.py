@@ -1,17 +1,16 @@
-#D4PG is a version of DDPG that is supposedly better however,
-#this script seems to be slower at this particular task or might not function properly
-
-
 import torch
+import common.performance as perform
 import torch.nn as nn
 from PR2L import experience, utilities, agent
+from PR2L.rendering import barprint, pltprint
 from PR2L.agent import float32_preprocessing, Agent, preprocessing
 import mjct
 import numpy as np
 import torch.nn.functional as F
 from torch import optim
 from collections import deque
-
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 class D4PGActor(nn.Module):
     def __init__(self, input_size, output_size, HIDDEN=400, HIDDEN2=300):
@@ -72,32 +71,44 @@ class AgentD4PG(Agent):
             actions = np.clip(actions, -1, 1)
         return actions, internal_states
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+ENV_NUM = 40
+REPLAY_BUFFER_SIZE = 50000
+LEARNING_RATE = 1e-4
+BATCH_SIZE = 200
+N_STEPS = 4
+GAMMA = 0.99
+APIRATE = 30
+ENV_ID = "TosserCPP"
+EPSILON_IDX = 50000
+V_MAX = 10
+V_MIN = -10
+N_ATOMS = 51
+DELTA = (V_MAX - V_MIN) / (N_ATOMS - 1)
 
 def distr_projection(next_v_distr, rewards, not_dones, gamma, device="cpu"):
     #handle episodes that were not terminated
-    if not_dones.any():
-        #next_v_distr is based on next_states which does not have the same shape as rewards!
-        next_distr = next_v_distr.data.cpu().numpy()
-        rewards = rewards.data.cpu().numpy()
-        batch_size = len(next_distr) #length of next_distr for batch which doesn't match rewards!
-        proj_distr = np.zeros(shape=(batch_size,N_ATOMS), dtype=np.float32)
-        for atom in range(N_ATOMS):
-            #project the atom from reward while respecting range
-            proj_atom = np.minimum(V_MAX, np.maximum(V_MIN, rewards[not_dones] + (V_MIN + atom * DELTA)*gamma))
-            #get index
-            proj_id = (proj_atom - V_MIN) / DELTA
-            lower = np.floor(proj_id).astype(np.int64)
-            upper = np.ceil(proj_id).astype(np.int64)
-            #handle rare event when atom falls directly on a boundary
-            same = (lower == upper)
-            proj_distr[same, lower[same]] += next_distr[same, atom]
-            not_same = (lower != upper)
-            proj_distr[not_same, lower[not_same]] += next_distr[not_same, atom] * (upper - proj_id)[not_same]
-            proj_distr[not_same, upper[not_same]] += next_distr[not_same, atom] * (proj_id - lower)[not_same]
-    
-    #handle episodes that were terminated
-    dones = (not_dones == False)
+    #next_v_distr is based on next_states which does not have the same shape as rewards!
+    next_distr = next_v_distr.data.cpu().numpy()
+    rewards = rewards.data.cpu().numpy()
+    batch_size = len(next_distr) #length of next_distr for batch which doesn't match rewards!
+    proj_distr = np.zeros(shape=(batch_size,N_ATOMS), dtype=np.float32)
+    for atom in range(N_ATOMS):
+        #project the atom from reward while respecting range
+        proj_atom = np.minimum(V_MAX, np.maximum(V_MIN, rewards[not_dones] + (V_MIN + atom * DELTA)*gamma))
+        #get index
+        proj_id = (proj_atom - V_MIN) / DELTA
+        lower = np.floor(proj_id).astype(np.int64)
+        upper = np.ceil(proj_id).astype(np.int64)
+        #handle rare event when atom falls directly on a boundary
+        same = (lower == upper)
+        proj_distr[same, lower[same]] += next_distr[same, atom]
+        not_same = (lower != upper)
+        proj_distr[not_same, lower[not_same]] += next_distr[not_same, atom] * (upper - proj_id)[not_same]
+        proj_distr[not_same, upper[not_same]] += next_distr[not_same, atom] * (proj_id - lower)[not_same]
 
+    #handle episodes that were terminated
+    dones = (not_dones == False)    
     if dones.any():
         resized_proj_distr = np.zeros(shape=(len(rewards), N_ATOMS), dtype=np.float32)
         resized_proj_distr[not_dones] = proj_distr
@@ -117,29 +128,13 @@ def distr_projection(next_v_distr, rewards, not_dones, gamma, device="cpu"):
         not_same_dones[dones] = not_same
         if not_same_dones.any():
             resized_proj_distr[not_same_dones, lower[not_same]] = (upper - proj_id)[not_same]
-            resized_proj_distr[not_same_dones, upper[not_same]] = (lower - proj_id)[not_same]
+            resized_proj_distr[not_same_dones, upper[not_same]] = (proj_id - lower)[not_same]
         #overwrite proj_distr
         proj_distr = resized_proj_distr
     return torch.FloatTensor(proj_distr).to(device)
-         
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-ENV_NUM = 50
-REPLAY_BUFFER_SIZE = 10000
-LEARNING_RATE = 1e-4
-BATCH_SIZE = 200
-N_STEPS = 4
-GAMMA = 0.99
-APIRATE = 30
-ENV_ID = "TosserCPP"
-EPSILON_IDX = 50000
-V_MAX = 10
-V_MIN = -10
-N_ATOMS = 51
-DELTA = (V_MAX - V_MIN) / (N_ATOMS - 1)
-
 
 if __name__ == "__main__":
+
     envs = [mjct.make(ENV_ID, apirate=APIRATE) for _ in range(ENV_NUM)]
     envs.append(mjct.make(ENV_ID, render= "autogl", apirate=APIRATE))
     inp_size = 10
@@ -155,7 +150,7 @@ if __name__ == "__main__":
     print(act_net)
 
     modelmanager = utilities.ModelBackupManager(ENV_ID, "D4PG_001", [act_net, crt_net])
-    #modelmanager.load()
+    modelmanager.load()
 
     _agent = AgentD4PG(act_net, device, 0.3)
     exp_source = experience.ExperienceSource(envs, _agent, GAMMA = GAMMA, n_steps=N_STEPS)
@@ -168,7 +163,12 @@ if __name__ == "__main__":
     idx = 0
     score = deque(maxlen=100)
     running = True
+
+    #plot = pltprint(delay=0.01, color='blue', alpha=0.3)
+    fps = perform.FPScounter()
     while running:
+        
+        fps.step()
         idx += 1
         buffer.populate(1)
 
@@ -198,7 +198,11 @@ if __name__ == "__main__":
             next_v_distr = tgt_crt.target_model(next_states, next_actions)
             next_v_distr = F.softmax(next_v_distr, dim=1)
         #project target distribution for last_states
+
         proj_next_v_distr = distr_projection(next_v_distr, rewards, not_dones, gamma=GAMMA**N_STEPS, device=device)
+        #if idx % 20 == 0:
+           # plot.drawbuffer(proj_next_v_distr[0].data.cpu().numpy(), 10)
+
         #get log_prob of distribution values * projected distr. 
         logprob_distr_v = -F.log_softmax(crt_v_distr, dim=1) * proj_next_v_distr
         #critic loss
@@ -228,3 +232,11 @@ if __name__ == "__main__":
             if m_score > 5.0:
                 modelmanager.save()
                 running = False
+
+
+
+"""
+This network seems to be doing fine with smaller batch size ~32.
+However, for this particular task, it can get stuck at a local minima with larger batch size ~200.
+In other words, it will perform much worse than regular DDPG at Tosser task.
+"""

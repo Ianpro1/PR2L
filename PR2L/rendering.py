@@ -2,6 +2,8 @@
 import pygame
 import numpy as np
 from gymnasium import Wrapper
+import matplotlib.pyplot as plt
+import multiprocessing as mp
 
 class RenderWrapper(Wrapper):
     """
@@ -200,3 +202,76 @@ def init_replay(queue, delay, screen_size=None, preprocessing=None):
     return
 
 
+def barprint(array : np.ndarray, delaysec=None):
+    assert isinstance(array, np.ndarray)
+    if array.ndim == 1:
+        plt.title(str(len(array)))
+        plt.bar(range(len(array)), array)
+    elif array.ndim == 2:
+        plt.title('(' + str(array.shape[0]) + ', ' + str(array.shape[1]) + ')')
+        for arr in array:
+            plt.bar(range(len(arr)), arr)
+            if delaysec is not None:
+                plt.pause(delaysec)
+    else:
+        print("(barprint) cannot graph 3d bar diagram...")
+    plt.show()
+
+
+class pltprint:
+    def __init__(self, graph=plt.bar, delay=0.001, xlim=None, ylim=(0,1), **kwargs):
+        inconn, outconn = mp.Pipe()
+        alims = [xlim, ylim]
+        self.thread = mp.Process(target=self.plt_thread, args=(outconn, graph, delay, alims), kwargs=kwargs)
+        self.thread.start()
+        self.inconn = inconn
+        self.buffer = []
+
+    def drawavg(self, x, buffer_len = 10):
+        if buffer_len == 1:
+            self.inconn.send(x)
+        else:
+            self.buffer.append(x)
+            if len(self.buffer) >= buffer_len:
+                temp_buffer = np.array(self.buffer, copy=False)
+                self.inconn.send(temp_buffer.mean(0))
+                self.buffer.clear()
+
+    def drawbuffer(self, x, buffer_len=10):
+        self.buffer.append(x)
+        if len(self.buffer) >= buffer_len:
+            self.inconn.send(np.array(self.buffer, copy=False))
+            self.buffer.clear()
+
+    def plt_thread(self, outconn, graph, delay, axis_lim : list, **kwargs):
+        x = outconn.recv()
+        assert isinstance(x, np.ndarray)
+        ndim = x.ndim
+        xsize = range(x.shape[-1])
+        if ndim ==1:
+            while True:
+                if axis_lim[0] is not None:
+                    plt.xlim(axis_lim[0])
+                plt.ylim(axis_lim[1])
+                graph(xsize, x, **kwargs)
+                plt.pause(delay)
+                plt.draw()
+                plt.clf()
+                x = outconn.recv()
+                if x is None:
+                    break
+        elif ndim == 2:
+            while True:
+                if axis_lim[0] is not None:
+                    plt.xlim(axis_lim[0])
+                plt.ylim(axis_lim[1])
+                for arr in x:
+                    graph(xsize, arr, **kwargs)
+                    plt.pause(delay)
+                plt.draw()
+                plt.clf()
+                x = outconn.recv()
+                if x is None:
+                    break
+        else:
+            print("(pltprint) Cannot plot {ndim}d array!")
