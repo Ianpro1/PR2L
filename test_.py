@@ -1,8 +1,22 @@
-import pstats, cProfile
+import mjct
+import numpy as np 
+from PR2L.playground import BasicController, CustomControllerCallback
 
-import test
 
-cProfile.runctx("", globals(), locals(), "Profile.prof")
 
-s = pstats.Stats("Profile.prof")
-s.strip_dirs().sort_stats("time").print_stats()
+env = mjct.make("TosserCPP", render="autogl", timestep=0.002, apirate=60)
+
+cb = CustomControllerCallback(env)
+ctrl = BasicController((2,), cb, cb.reload)
+
+inp = ['w', 'a', 's', 'd']
+
+out = [
+[-1,[0]],
+[1, [0]],
+[-1,[1]],
+[1, [1]],
+]
+
+ctrl.loadController(inp, out)
+ctrl.play(1)
