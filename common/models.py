@@ -240,6 +240,7 @@ class LinearA2C(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 1)
         )
+        
         self.policy = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),

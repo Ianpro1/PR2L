@@ -35,3 +35,53 @@ training consists of using mse for critic and maximizing the critic output FOR T
 actor returns a distribition of atoms for probabilities of values from predefined range
 -OU process yields similar result to simple random noise
 -uses cross-entropy loss for difference between 2 probability distributions
+
+
+
+
+###My Current Understanding of Loss Functions
+
+Common misunderstanding of loss functions comes from the fact that loss != gradient.
+This is true even for signs (loss)sign != (gradient)sign.
+
+#Here are some easy explanations for harder loss functions:
+
+##A3C reinforce -> - log(probability action) * Advantage Value
+
+First consider an instance where the probability of the action should be maximized : when Advantage Value = 0.
+
+#Why?
+
+This is because Advantage value comes from Q = Adv + V and we do Q - V to get Adv,
+where Q comes from the reward actually obtained + what the network expects next, and V comes from what the network expects as reward.
+Thus, the Avantage equation in terms of bias is something like (1/x)Bias of previous network - bias of current network,
+where (1/x) just means that eventhough Q is biased, it is less biased because we used the actually obtained reward.
+
+Recall: Q = r0 + gamma^1 * r1 + gamma^2 * r2 + gamma^2 * r3 + ... where (gamma^1 * r1 + gamma^2 * r2 + gamma^2 * r3 + ...) is generated from the network. 
+Either way, the Advantage tells us if the current network is biased overconfident or biased underconfident or unbiased when Adv. value = 0.
+
+Therefore, when Adv. value = 0, we should maximize the probability of the action.
+
+#Solution.
+
+The rate of logarithmics is positive in this case : ln(x) = 1/x dx
+Therefore, say the probability p(action) was low, the value from log(p(a)) is a large negative value and should be increase towards 0 or a less large negative value.
+
+In backpropagation, we are doing :  parameters = parameters - gradients * learning rate.
+Therefore, if the gradients from log(p(action)) are positive the value would get decrease even more and hence why we have a negative sign (-) in:
+
+- log(probability action) * Advantage Value
+
+Its then easy to see that if we're overconfident, we need to decrease the p(action) which is being done when V > Q and hence when Advantage value is negative.
+
+##cross-entropy -> sum(log(q(x)) * p(x)) where p(x) is the target distribution and q(x) the network's.
+
+#solution.
+
+The entropy of a normal distribution is : H(p) = 1/2 log(2pi * e * sigma^2), where sigma^2 is the variance of the distribution.
+Therefore, the cross-entropy is proportional to the variance of the distribution itself.
+Hence, our goal is to get as large of a value possible from -log(q(x)), or a large negative value from log(q(x)) because it means the variance is small,
+and the certainty is great that both distributions are close.
+
+As for the signs, it follows the same reasoning as the previous example.
+
