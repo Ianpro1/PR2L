@@ -4,6 +4,7 @@ import torch.nn as nn
 from PR2L import experience, utilities, agent
 from PR2L.rendering import barprint, pltprint
 from PR2L.agent import float32_preprocessing, Agent, preprocessing
+from PR2L.training import distr_projection
 import mjct
 import numpy as np
 import torch.nn.functional as F
@@ -52,7 +53,7 @@ class D4PGCritic(nn.Module):
         w = F.softmax(distr, dim=1) * self.support_atoms
         res = w.sum(dim=1)
         return res.unsqueeze(dim=-1)
-    
+
 
 class AgentD4PG(Agent):
     def __init__(self, act_net, device="cpu", epsilon=0.3, clipping=True):
@@ -81,57 +82,10 @@ GAMMA = 0.99
 APIRATE = 30
 ENV_ID = "TosserCPP"
 EPSILON_IDX = 50000
-V_MAX = 10
-V_MIN = -10
+V_MAX = 10.0
+V_MIN = -10.0
 N_ATOMS = 51
 DELTA = (V_MAX - V_MIN) / (N_ATOMS - 1)
-
-def distr_projection(next_v_distr, rewards, not_dones, gamma, device="cpu"):
-    #handle episodes that were not terminated
-    #next_v_distr is based on next_states which does not have the same shape as rewards!
-    next_distr = next_v_distr.data.cpu().numpy()
-    rewards = rewards.data.cpu().numpy()
-    batch_size = len(next_distr) #length of next_distr for batch which doesn't match rewards!
-    proj_distr = np.zeros(shape=(batch_size,N_ATOMS), dtype=np.float32)
-    for atom in range(N_ATOMS):
-        #project the atom from reward while respecting range
-        proj_atom = np.minimum(V_MAX, np.maximum(V_MIN, rewards[not_dones] + (V_MIN + atom * DELTA)*gamma))
-        #get index
-        proj_id = (proj_atom - V_MIN) / DELTA
-        lower = np.floor(proj_id).astype(np.int64)
-        upper = np.ceil(proj_id).astype(np.int64)
-        #handle rare event when atom falls directly on a boundary
-        same = (lower == upper)
-        proj_distr[same, lower[same]] += next_distr[same, atom]
-        not_same = (lower != upper)
-        proj_distr[not_same, lower[not_same]] += next_distr[not_same, atom] * (upper - proj_id)[not_same]
-        proj_distr[not_same, upper[not_same]] += next_distr[not_same, atom] * (proj_id - lower)[not_same]
-
-    #handle episodes that were terminated
-    dones = (not_dones == False)    
-    if dones.any():
-        resized_proj_distr = np.zeros(shape=(len(rewards), N_ATOMS), dtype=np.float32)
-        resized_proj_distr[not_dones] = proj_distr
-        #this will handle the situation when the episode is over,
-        #in this case the projected distribution will be a single or double strand representing the rewards
-        proj_atom = np.minimum(V_MAX, np.maximum(V_MIN, rewards[dones]))
-        proj_id = (proj_atom-V_MIN) / DELTA
-        lower = np.floor(proj_id).astype(np.int64)
-        upper = np.ceil(proj_id).astype(np.int64)
-        same = (lower == upper)
-        same_dones = dones.copy()
-        same_dones[dones] = same
-        if same_dones.any():
-            resized_proj_distr[same_dones, lower[same]] = 1.0
-        not_same = (lower != upper)
-        not_same_dones = dones.copy()
-        not_same_dones[dones] = not_same
-        if not_same_dones.any():
-            resized_proj_distr[not_same_dones, lower[not_same]] = (upper - proj_id)[not_same]
-            resized_proj_distr[not_same_dones, upper[not_same]] = (proj_id - lower)[not_same]
-        #overwrite proj_distr
-        proj_distr = resized_proj_distr
-    return torch.FloatTensor(proj_distr).to(device)
 
 if __name__ == "__main__":
 
@@ -199,13 +153,14 @@ if __name__ == "__main__":
             next_v_distr = F.softmax(next_v_distr, dim=1)
         #project target distribution for last_states
 
-        proj_next_v_distr = distr_projection(next_v_distr, rewards, not_dones, gamma=GAMMA**N_STEPS, device=device)
+        #target distribution
+        proj_next_v_distr = distr_projection(next_v_distr, rewards, not_dones, GAMMA**N_STEPS, N_ATOMS, V_MAX, V_MIN, DELTA , device=device)
         if idx % 20 == 0:
             plot.drawbuffer(proj_next_v_distr[0].data.cpu().numpy(), 10)
 
         #get log_prob of distribution values * projected distr. 
         logprob_distr_v = -F.log_softmax(crt_v_distr, dim=1) * proj_next_v_distr
-        #critic loss
+        #critic loss (minimizing cross-entropy between projected and expected distributions)
         critic_loss = logprob_distr_v.sum(dim=1).mean()
         critic_loss.backward()
         crt_opt.step()
@@ -216,7 +171,7 @@ if __name__ == "__main__":
         act_v = act_net(states)
         v_distr = crt_net(states, act_v)
         mu_v = crt_net.get_expected_v(v_distr)
-        #actor loss
+        #actor loss (maximizing the mean or expected reward)
         actor_loss = -mu_v.mean()
         actor_loss.backward()
         act_opt.step()
