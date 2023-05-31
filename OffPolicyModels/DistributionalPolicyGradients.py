@@ -151,7 +151,6 @@ if __name__ == "__main__":
             next_actions = tgt_act.target_model(next_states)
             next_v_distr = tgt_crt.target_model(next_states, next_actions)
             next_v_distr = F.softmax(next_v_distr, dim=1)
-        #project target distribution for last_states
 
         #target distribution
         proj_next_v_distr = distr_projection(next_v_distr, rewards, not_dones, GAMMA**N_STEPS, N_ATOMS, V_MAX, V_MIN, DELTA , device=device)

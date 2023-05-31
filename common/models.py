@@ -246,7 +246,7 @@ class LinearA2C(nn.Module):
             nn.ReLU(),
             nn.Linear(256, n_actions)
         )
-    
+  
     def forward(self, x):
         x = self.lin(x)
         act_v = self.policy(x)

@@ -168,7 +168,7 @@ class ModelBackup:
 
 class ModelBackupManager:
     """"
-    Variant of ModelBackup: allows backup creation and (Not yet) loading of multiple networks at once.
+    Variant of ModelBackup: allows backup creation and loading of multiple networks at once.
     """
     def __init__(self,ENV_ID,iid, net, directory="model_saves", notify=True, error=True):
         assert isinstance(iid, str)

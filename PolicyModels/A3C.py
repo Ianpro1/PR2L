@@ -209,7 +209,7 @@ if __name__ == "__main__":
         policy_loss = -(log_prob_a * adv_v).mean()
         
         probs = F.softmax(logits, dim=1)
-
+        
         entropy_loss = (probs * log_probs).sum(dim=1).mean()
         entropy_loss = BETA_ENTROPY * entropy_loss
 

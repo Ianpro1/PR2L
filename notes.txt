@@ -1,4 +1,0 @@
-interesting concepts: 
-
-disentangled representation (VAE : variational auto-encoder)
-reparametrized
