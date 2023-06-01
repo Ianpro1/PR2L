@@ -400,6 +400,7 @@ class ScarsedExperienceSource(DequeSource):
                     exp = Experience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), nextobs)
                     yield exp 
 
+
 class SimpleDecayBuffer(DequeSource):
     """
     DecayBuffer stores experiences that are pushed to it and decays them to n_steps. 
@@ -416,6 +417,7 @@ class SimpleDecayBuffer(DequeSource):
         self._rewards = []
         self._actions = []
         self._cur_obs = [None] * ENV_NUM
+        
         self.buffer = []
 
         for _ in range(self.n_envs):
@@ -466,7 +468,7 @@ class SimpleDecayBuffer(DequeSource):
             self._add(env_id, obs, act, rew, done)
         return None
 
-    def sample(self, n_samples) -> list:
+    def randomSample(self, n_samples) -> list:
         if len(self.buffer) <= n_samples:
             samples = self.buffer[:]
             self.buffer.clear()
@@ -476,12 +478,93 @@ class SimpleDecayBuffer(DequeSource):
         for key in sorted(keys, reverse=True):
             del self.buffer[key]
         return samples
+    
+    def sample(self, n_samples):
+        if (len(self.buffer) <= n_samples):
+            samples = self.buffer[:]
+            self.buffer.clear()
+            return samples
+        samples = self.buffer[:n_samples]
+        self.buffer = self.buffer[n_samples:]
+        return samples
 
     def pop_left(self):
         return self.buffer.pop(0)
-   
+    
     def releaseBuffer(self) -> list:
         samples = self.buffer[:]
         
         self.buffer.clear()
         return samples
+
+
+class DequeDecayBuffer(DequeSource):
+    """
+    DequeDecayBuffer works the same as SimpleDecayBuffer however it does not store the experiences and instead of using a list, it uses a deque.
+    It should be used after _add as an iterator object to pop all experiences from the small buffer : deque(maxlen=n_steps).
+
+    """
+
+    def __init__(self, n_envs : int, n_steps=2, GAMMA =0.99 , track_rewards =True, bufferLength = -1):
+        self.n_steps = n_steps
+        ENV_NUM = n_envs 
+        super().__init__(ENV_NUM, GAMMA, track_rewards)
+        self._states = []
+        self._rewards = []
+        self._actions = []
+        self._cur_obs = [None] * ENV_NUM
+        
+        if (bufferLength == -1):
+            self.buffer = deque(maxlen=n_steps)
+        else:
+            assert bufferLength > 0
+            self.buffer = deque(maxlen=bufferLength)
+
+        for _ in range(self.n_envs):
+            self._states.append(deque(maxlen=self.n_steps))
+            self._rewards.append(deque(maxlen=self.n_steps))
+            self._actions.append(deque(maxlen=self.n_steps))
+
+    def _add(self, env_id, obs, act=None, rew=None, done=None) -> None:
+        if self._cur_obs[env_id] is None:
+            self._cur_obs[env_id] = obs
+            return None
+        assert act is not None
+        assert rew is not None
+        assert done is not None
+
+        self._actions[env_id].append(act)
+        self._rewards[env_id].append(rew)
+        self._states[env_id].append(self._cur_obs[env_id])
+        if self.track_rewards:
+            self.sum_rewards_steps(rew, done, env_id)
+        if done:
+            #decay all
+            decayed = self.decay_all_rewards(self._rewards[env_id])
+            self._rewards[env_id].clear()
+            for r_id in range(1, len(decayed)+1):
+                exp = Experience(self._states[env_id].popleft(), self._actions[env_id].popleft(), decayed[-r_id], None)
+                self.buffer.append(exp)
+            self.n_eps_done += 1
+
+            #need to behave differently on next _add()
+            self._cur_obs[env_id] = None
+
+        else:
+            self._cur_obs[env_id] = obs
+
+            if len(self._actions[env_id]) == self.n_steps:
+                #decay oldest
+                self.decay_oldest_reward(self._rewards[env_id])
+                exp = Experience(self._states[env_id].popleft(), self._actions[env_id].popleft(), self._rewards[env_id].popleft(), obs)
+                self.buffer.append(exp)
+        return None
+
+    def __len__(self) -> int:
+        return len(self.buffer)
+    
+
+    def __iter__(self):
+        while(1):
+            yield self.buffer.popleft
+    
