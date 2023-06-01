@@ -406,7 +406,7 @@ class SimpleDecayBuffer(DequeSource):
     DecayBuffer stores experiences that are pushed to it and decays them to n_steps. 
     This flexible approach allows users to implement their own agent's step-through-environments loop,
     without thinking about storing n_steps experiences.
-
+    *ideal for off-policy networks
     """
 
     def __init__(self, n_envs : int, n_steps=2, GAMMA =0.99 , track_rewards =True):
@@ -468,24 +468,17 @@ class SimpleDecayBuffer(DequeSource):
             self._add(env_id, obs, act, rew, done)
         return None
 
-    def randomSample(self, n_samples) -> list:
+    def sample(self, n_samples, retain_samples=True) -> list:
         if len(self.buffer) <= n_samples:
             samples = self.buffer[:]
-            self.buffer.clear()
+            if (retain_samples != True):
+                self.buffer.clear()
             return samples
         keys = np.random.choice(len(self.buffer), n_samples, replace=True)
         samples = [self.buffer[key] for key in keys]
-        for key in sorted(keys, reverse=True):
-            del self.buffer[key]
-        return samples
-    
-    def sample(self, n_samples):
-        if (len(self.buffer) <= n_samples):
-            samples = self.buffer[:]
-            self.buffer.clear()
-            return samples
-        samples = self.buffer[:n_samples]
-        self.buffer = self.buffer[n_samples:]
+        if (retain_samples != True):
+            for key in sorted(keys, reverse=True):
+                del self.buffer[key]
         return samples
 
     def pop_left(self):
@@ -493,7 +486,6 @@ class SimpleDecayBuffer(DequeSource):
     
     def releaseBuffer(self) -> list:
         samples = self.buffer[:]
-        
         self.buffer.clear()
         return samples
 
@@ -502,6 +494,7 @@ class DequeDecayBuffer(DequeSource):
     """
     DequeDecayBuffer works the same as SimpleDecayBuffer however it does not store the experiences and instead of using a list, it uses a deque.
     It should be used after _add as an iterator object to pop all experiences from the small buffer : deque(maxlen=n_steps).
+    *ideal for on-policy networks
 
     """
 
