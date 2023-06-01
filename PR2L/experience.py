@@ -180,6 +180,7 @@ class DequeSource:
       pop_rewards_steps (returns: rewards and steps as zipped list)
     """
     def __init__(self, ENV_NUM, GAMMA=0.99, track_rewards=True):
+        self.n_envs = ENV_NUM
         if track_rewards:
             self.tot_reward = [0.]*ENV_NUM
             self.tot_rewards = []
@@ -398,3 +399,86 @@ class ScarsedExperienceSource(DequeSource):
                     self.decay_oldest_reward(_rewards[i])
                     exp = Experience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), nextobs)
                     yield exp 
+
+class SimpleDecayBuffer(DequeSource):
+    """
+    DecayBuffer stores experiences that are pushed to it and decays them to n_steps. 
+    This flexible approach allows users to implement their own agent's step-through-environments loop,
+    without thinking about storing n_steps experiences.
+
+
+    """
+
+    def __init__(self, n_envs : int, n_steps=2, GAMMA =0.99 , track_rewards =True):
+        self.n_steps = n_steps
+        ENV_NUM = n_envs 
+        super().__init__(ENV_NUM, GAMMA, track_rewards)
+        self._states = []
+        self._rewards = []
+        self._actions = []
+        self._cur_obs = [None] * ENV_NUM
+        self.buffer = []
+
+        for _ in range(self.n_envs):
+            self._states.append(deque(maxlen=self.n_steps))
+            self._rewards.append(deque(maxlen=self.n_steps))
+            self._actions.append(deque(maxlen=self.n_steps))
+
+    def _add(self, env_id, obs, act=None, rew=None, done=None) -> None:
+        if self._cur_obs[env_id] is None:
+            self._cur_obs[env_id] = obs
+            return None
+        assert act is not None
+        assert rew is not None
+        assert done is not None
+
+        self._actions[env_id].append(act)
+        self._rewards[env_id].append(rew)
+        self._states[env_id].append(self._cur_obs[env_id])
+        if self.track_rewards:
+            self.sum_rewards_steps(rew, done, env_id)
+        if done:
+            #decay all
+            decayed = self.decay_all_rewards(self._rewards[env_id])
+            self._rewards[env_id].clear()
+            for r_id in range(1, len(decayed)+1):
+                exp = Experience(self._states[env_id].popleft(), self._actions[env_id].popleft(), decayed[-r_id], None)
+                self.buffer.append(exp)
+            self.n_eps_done += 1
+
+            #need to behave differently on next _add()
+            self._cur_obs[env_id] = None
+
+        else:
+            self.cur_obs[env_id] = obs
+
+            if len(self._actions[env_id]) == self.n_steps:
+                #decay oldest
+                self.decay_oldest_reward(self._rewards[env_id])
+                exp = Experience(self._states[env_id].popleft(), self._actions[env_id].popleft(), self._rewards[env_id].popleft(), obs)
+                self.buffer.append(exp)
+        return None
+        
+    def __len__(self) -> int:
+        return len(self.buffer)
+
+    def _extend(self, env_ids, observations, actions, rewards, dones) -> None:
+        for env_id, obs, act, rew, done in list(zip(env_ids, observations, actions, rewards, dones)):
+            self._add(env_id, obs, act, rew, done)
+        return None
+
+    def sample(self, n_samples) -> list:
+        if len(self.buffer) <= n_samples:
+            samples = self.buffer[:]
+            self.buffer.clear()
+            return samples
+        keys = np.random.choice(len(self.buffer), n_samples, replace=True)
+        samples = [self.buffer[key] for key in keys]
+        for key in sorted(keys, reverse=True):
+            del self.buffer[key]
+        return samples         
+   
+    def releaseBuffer(self) -> list:
+        samples = self.buffer[:]
+        self.buffer.clear()
+        return samples
