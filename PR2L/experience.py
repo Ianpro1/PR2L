@@ -559,5 +559,8 @@ class DequeDecayBuffer(DequeSource):
 
     def __iter__(self):
         while(1):
-            yield self.buffer.popleft
+            if (len(self.buffer) > 0):
+                yield self.buffer.popleft()
+            else:
+                yield None
     
