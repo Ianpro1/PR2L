@@ -406,7 +406,6 @@ class SimpleDecayBuffer(DequeSource):
     This flexible approach allows users to implement their own agent's step-through-environments loop,
     without thinking about storing n_steps experiences.
 
-
     """
 
     def __init__(self, n_envs : int, n_steps=2, GAMMA =0.99 , track_rewards =True):
@@ -450,7 +449,7 @@ class SimpleDecayBuffer(DequeSource):
             self._cur_obs[env_id] = None
 
         else:
-            self.cur_obs[env_id] = obs
+            self._cur_obs[env_id] = obs
 
             if len(self._actions[env_id]) == self.n_steps:
                 #decay oldest
@@ -462,7 +461,7 @@ class SimpleDecayBuffer(DequeSource):
     def __len__(self) -> int:
         return len(self.buffer)
 
-    def _extend(self, env_ids, observations, actions, rewards, dones) -> None:
+    def _extend(self, env_ids, observations, actions=None, rewards=None, dones=None) -> None:
         for env_id, obs, act, rew, done in list(zip(env_ids, observations, actions, rewards, dones)):
             self._add(env_id, obs, act, rew, done)
         return None
@@ -476,9 +475,13 @@ class SimpleDecayBuffer(DequeSource):
         samples = [self.buffer[key] for key in keys]
         for key in sorted(keys, reverse=True):
             del self.buffer[key]
-        return samples         
+        return samples
+
+    def pop_left(self):
+        return self.buffer.pop(0)
    
     def releaseBuffer(self) -> list:
         samples = self.buffer[:]
+        
         self.buffer.clear()
         return samples
