@@ -3,6 +3,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 import torch.nn.utils as nn_utils
 from PR2L import agent, utilities, rendering, experience
+from PR2L.training import unpack_batch
 import torch.multiprocessing as mp
 import numpy as np
 import gym
@@ -180,7 +181,7 @@ if __name__ == "__main__":
         
         batch_len = len(batch)
         
-        states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
+        states, actions, rewards, last_states, not_dones = unpack_batch(batch)
         
         states = preprocessor(states).to(device)
         rewards = preprocessor(rewards).to(device)

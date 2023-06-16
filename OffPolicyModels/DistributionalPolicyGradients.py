@@ -2,6 +2,7 @@ import torch
 import common.performance as perform
 import torch.nn as nn
 from PR2L import experience, utilities, agent
+from PR2L.training import unpack_batch
 from PR2L.rendering import barprint, pltprint
 from PR2L.agent import float32_preprocessing, Agent, preprocessing
 from PR2L.training import distr_projection
@@ -136,7 +137,7 @@ if __name__ == "__main__":
         
         batch = buffer.sample(BATCH_SIZE)
 
-        states, actions, rewards, next_states, not_dones = utilities.unpack_batch(batch)
+        states, actions, rewards, next_states, not_dones = unpack_batch(batch)
         states = float32_preprocessing(states).to(device)
         actions = preprocessing(actions).to(device)
         rewards = float32_preprocessing(rewards).to(device)

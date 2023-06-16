@@ -85,3 +85,6 @@ and the certainty is great that both distributions are close.
 
 As for the signs, it follows the same reasoning as the previous example.
 
+
+
+NOTE: Its often better to take the min between unclipped and clipped loss than to just clip the loss (check PPO interpolation)

@@ -141,7 +141,7 @@ if __name__ == "__main__":
         batch.clear()
 
         optimizer.zero_grad()
-
+        
         mu_v, var_v, values = net(states)
         value_loss = F.mse_loss(values.squeeze(-1), refs_q_v)
 

@@ -5,6 +5,7 @@ import numpy as np
 from PR2L.agent import Agent, float32_preprocessing, preprocessing
 import mjct
 from PR2L import experience, utilities, agent
+from PR2L.training import unpack_batch
 from torch import optim
 import torch.nn.functional as F
 from collections import deque
@@ -142,7 +143,7 @@ if __name__ == "__main__":
         
         batch = buffer.sample(BATCH_SIZE)
 
-        states, actions, rewards, next_states, not_dones = utilities.unpack_batch(batch)
+        states, actions, rewards, next_states, not_dones = unpack_batch(batch)
         states = float32_preprocessing(states).to(device)
         actions = preprocessing(actions).to(device)
         rewards = float32_preprocessing(rewards).to(device)

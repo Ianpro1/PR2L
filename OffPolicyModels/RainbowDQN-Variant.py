@@ -16,6 +16,7 @@ import time
 from collections import namedtuple, deque
 import torch.multiprocessing as tmp
 from PR2L import agent, utilities, experience, rendering
+from PR2L.training import unpack_batch
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
 
 EpisodeEnded = namedtuple("EpisodeEnded", ("reward", "steps"))
@@ -208,7 +209,7 @@ if __name__ == '__main__':
             backup.mkrender(fps=160.0)
             break          
 
-        states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
+        states, actions, rewards, last_states, not_dones = unpack_batch(batch)
         loss = calc_loss(states, actions, rewards, last_states, not_dones, tgt_net, net)
         loss.backward()
 

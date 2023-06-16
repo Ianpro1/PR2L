@@ -6,7 +6,8 @@ import numpy as np
 from common import common_wrappers, models, extentions
 import gym
 from gym.wrappers.atari_preprocessing import AtariPreprocessing
-from PR2L import agent, experience, utilities, rendering
+from PR2L import agent, experience, rendering
+from PR2L.training import unpack_batch
 import multiprocessing as mp
 from collections import deque
 import torch.utils.tensorboard as tensorboard
@@ -91,7 +92,7 @@ if __name__ == "__main__":
         if len(batch) < BATCH_SIZE:
             continue
         
-        states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch) #TODO 
+        states, actions, rewards, last_states, not_dones = unpack_batch(batch) #TODO 
 
         states = preprocessor(states).to(device)
         rewards = preprocessor(rewards).to(device)

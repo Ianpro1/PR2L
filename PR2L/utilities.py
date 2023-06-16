@@ -3,82 +3,44 @@
 import torch
 import datetime
 import os
-from gym import Wrapper
+
+gymEnabled = True
+
+try:
+    import gymnasium as gym
+except ImportError:
+    try:
+        import gym
+    except ImportError:
+        print("Failed to import both gymnasium and gym")
+        gymEnabled = False
+
 import cv2
 import numpy as np
 
-def unpack_batch(batch):
-    """
-    A class used to unpack a batch of experiences of type experience.Experience
-
-    Returns the following: states, actions, rewards, next_states, not_dones
-
-    NOTE: next_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
-     mask a torch.zero_like tensor and replace the values with next_states.
-    #This function assumes len(next_states) < 1 is handled properly during training"""
-    states = []
-    rewards = []
-    actions = []
-    next_states = []
-    not_dones = []
-    for exp in batch:
-        states.append(exp.state)
-        rewards.append(exp.reward)
-        actions.append(exp.action)
-        
-        if exp.next is not None:
-            not_dones.append(True)
-            next_states.append(exp.next) 
-        else:
-            not_dones.append(False)   
-    return states, actions, rewards, next_states, not_dones
-
-def unpack_memorizedbatch(batch):
-    """
-    A class used to unpack a batch of experiences of type experience.MemorizedExperience
-
-    NOTE: next_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
-     mask a torch.zero_like tensor and replace the values with next_states.
-    #This function assumes len(next_states) < 1 is handled properly during training"""
-    states = []
-    rewards = []
-    actions = []
-    next_states = []
-    not_dones = []
-    memories = []
-    for exp in batch:
-        states.append(exp.state)
-        rewards.append(exp.reward)
-        actions.append(exp.action)
-        memories.append(exp.memory)
-        if exp.next is not None:
-            not_dones.append(True)
-            next_states.append(exp.next) 
-        else:
-            not_dones.append(False)   
-    return states, actions, rewards, next_states, not_dones, memories
 
 #backup
-class render_env(Wrapper):
-    """
-    Simple wrapper class that keeps an rgb array list from last environment reset() inside the attribute: rframes.
-    This wrapper is mostly used along the ModelBackup class
-    
-    """
-    def __init__(self, env):
-        super().__init__(env)
-        self.rframes = []
+if gymEnabled:
+    class render_env(gym.Wrapper):
+        """
+        Simple wrapper class that keeps an rgb array list from last environment reset() inside the attribute: rframes.
+        This wrapper is mostly used along the ModelBackup class
+        
+        """
+        def __init__(self, env):
+            super().__init__(env)
+            self.rframes = []
 
-    def reset(self):
-        self.rframes.clear()
-        obs, info = self.env.reset()
-        self.rframes.append(self.env.render())
-        return obs, info
-    
-    def step(self, action):
-        obs, rew, done, trunc, info = self.env.step(action)
-        self.rframes.append(self.env.render())
-        return obs, rew, done, trunc, info
+        def reset(self):
+            self.rframes.clear()
+            obs, info = self.env.reset()
+            self.rframes.append(self.env.render())
+            return obs, info
+        
+        def step(self, action):
+            obs, rew, done, trunc, info = self.env.step(action)
+            self.rframes.append(self.env.render())
+            return obs, rew, done, trunc, info
 
 
 class ModelBackup:

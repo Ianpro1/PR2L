@@ -2,8 +2,58 @@
 
 import torch
 import numpy as np
-from PR2L import utilities, agent
+from PR2L import agent
 
+def unpack_batch(batch):
+    """
+    A class used to unpack a batch of experiences of type experience.Experience
+
+    Returns the following: states, actions, rewards, next_states, not_dones
+
+    NOTE: next_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
+     mask a torch.zero_like tensor and replace the values with next_states.
+    #This function assumes len(next_states) < 1 is handled properly during training"""
+    states = []
+    rewards = []
+    actions = []
+    next_states = []
+    not_dones = []
+    for exp in batch:
+        states.append(exp.state)
+        rewards.append(exp.reward)
+        actions.append(exp.action)
+        
+        if exp.next is not None:
+            not_dones.append(True)
+            next_states.append(exp.next) 
+        else:
+            not_dones.append(False)   
+    return states, actions, rewards, next_states, not_dones
+
+def unpack_memorizedbatch(batch):
+    """
+    A class used to unpack a batch of experiences of type experience.MemorizedExperience
+
+    NOTE: next_states batch size is smaller than states when there are terminations. This is because not_dones should be used to
+     mask a torch.zero_like tensor and replace the values with next_states.
+    #This function assumes len(next_states) < 1 is handled properly during training"""
+    states = []
+    rewards = []
+    actions = []
+    next_states = []
+    not_dones = []
+    memories = []
+    for exp in batch:
+        states.append(exp.state)
+        rewards.append(exp.reward)
+        actions.append(exp.action)
+        memories.append(exp.memory)
+        if exp.next is not None:
+            not_dones.append(True)
+            next_states.append(exp.next) 
+        else:
+            not_dones.append(False)   
+    return states, actions, rewards, next_states, not_dones, memories
 
 #for Actor critic based Models
 def unpack_batch_A2C(batch, net, GAMMA=0.99, N_STEPS=2, device="cpu", value_index_pos=1):
@@ -14,7 +64,7 @@ def unpack_batch_A2C(batch, net, GAMMA=0.99, N_STEPS=2, device="cpu", value_inde
 
     More specifically, this class is for Actor critic based Models
     """
-    states, actions, rewards, next_states, not_dones = utilities.unpack_batch(batch)
+    states, actions, rewards, next_states, not_dones = unpack_batch(batch)
 
     states = agent.float32_preprocessing(states).to(device)
     rewards = agent.float32_preprocessing(rewards).to(device)
@@ -41,7 +91,7 @@ def unpack_batch_DQN_tgt(batch, tgt_net, GAMMA=0.99, N_STEPS=2, device="cpu"):
     More specifically, this class is for Simple DQN models.
     - using target net for argmax step (Dev - Never tested, there might be unsqueezing to do)
     """
-    states, actions, rewards, next_states, not_dones = utilities.unpack_batch(batch)
+    states, actions, rewards, next_states, not_dones = unpack_batch(batch)
 
     states = agent.float32_preprocessing(states).to(device)
     rewards = agent.float32_preprocessing(rewards).to(device)
@@ -69,7 +119,7 @@ def unpack_batch_DQN_double(batch, net, tgt_net, GAMMA=0.99, N_STEPS=2, device="
     More specifically, this class if for Double DQN models 
     - using main network for argmax step (Dev - Never tested, there might be unsqueezing to do)
     """
-    states, actions, rewards, next_states, not_dones = utilities.unpack_batch(batch)
+    states, actions, rewards, next_states, not_dones = unpack_batch(batch)
 
     states = agent.float32_preprocessing(states).to(device)
     rewards = agent.float32_preprocessing(rewards).to(device)

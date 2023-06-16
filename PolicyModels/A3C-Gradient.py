@@ -3,6 +3,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 import torch.nn.utils as nn_utils
 from PR2L import agent, utilities, rendering, experience
+from PR2L.training import unpack_batch
 import torch.multiprocessing as mp
 import numpy as np
 import gym
@@ -78,7 +79,7 @@ def grads_func(proc_name, net, device, train_queue, inconn=None):
         if len(batch) < GRAD_BATCH:
                 continue
         
-        states, actions, rewards, last_states, not_dones = utilities.unpack_batch(batch)
+        states, actions, rewards, last_states, not_dones = unpack_batch(batch)
         batch.clear()
 
         states = preprocessor(states).to(device)

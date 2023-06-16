@@ -1,11 +1,18 @@
 #rendering contains classes for live-rendering of the agent and tools for neural network analysis (not yet implemented)
 import pygame
 import numpy as np
-from gymnasium import Wrapper
+try:
+    import gymnasium as gym
+except ImportError:
+    try:
+        import gym
+    except ImportError:
+        raise ImportError("Failed to import both gymnasium and gym")
+
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 
-class RenderWrapper(Wrapper):
+class RenderWrapper(gym.Wrapper):
     """
     This render wrapper will send the render() output of the environment through the mp.Pipe() given as argument.
     """
@@ -31,7 +38,7 @@ class RenderWrapper(Wrapper):
             self.inconn.send(frame)
         return obs
 
-class SendimgWrapper(Wrapper):
+class SendimgWrapper(gym.Wrapper):
     """
     This render wrapper will send the raw observation of the environment through the mp.Pipe() given as argument.
     """
@@ -122,7 +129,7 @@ def init_display(outconn, screen_size=None, preprocessing=None):
     return
 
 
-class ReplayWrapper(Wrapper):
+class ReplayWrapper(gym.Wrapper):
     """
     This wrapper will build an episode of frame using render() and, once the environment terminated, will send it through the mp.Pipe()
     """

@@ -1,5 +1,12 @@
 #playground provides Dummy environments and tools for testing basic algorithms 
-import gymnasium as gym
+try:
+    import gymnasium as gym
+except ImportError:
+    try:
+        import gym
+    except ImportError:
+        raise ImportError("Failed to import both gymnasium and gym")
+
 import numpy as np
 import pygame
 
@@ -44,7 +51,7 @@ class DeterministicRewards:
 
 class Dummy(gym.Env):
     """
-    A class environment inheriting gymnasium gym.Env.
+    A class environment inheriting gym.Env.
     The class serves as dummy for testing algorithms, where you can defined custom observation functions, rewards functions and more.
     Using the default argument will result in an environment that uses DeterministicObservations() as obs_func and DeterministicRewards() as rew_func
     """
