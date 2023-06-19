@@ -71,7 +71,7 @@ LEARNING_RATE_ACTOR = 1e-5
 LEARNING_RATE_CRITIC = 1e-4
 PPO_EPS = 0.2
 PPO_EPOCHES = 10
-PPO_BATCH_SIZE = 64
+PPO_BATCH_SIZE = 60
 TEST_ITERS = 1000
 
 #trajectory and states must be ordered
@@ -81,6 +81,7 @@ def calc_adv_ref(trajectory, net_crt, states, device='cpu'):
     last_gae = 0.0
     result_adv = []
     result_ref = []
+    
     for val, next_val, exp in zip(reversed(values[:-1]), reversed(values[1:]), reversed(trajectory[:-1])):
         if exp.done:
             delta = exp.reward - val
@@ -215,7 +216,7 @@ if __name__ == "__main__":
         idx +=1
         for epoch in range(PPO_EPOCHES):
             for batch_ofs in range(0, len(final_trajectory), PPO_BATCH_SIZE):
-                if (batch_ofs < 30):
+                if (batch_ofs < 100):
                     next(render_source)
                 batch_l = batch_ofs + PPO_BATCH_SIZE
                 states_v = final_trajectory[batch_ofs:batch_l]
@@ -224,6 +225,7 @@ if __name__ == "__main__":
                 batch_adv_v = batch_adv_v.unsqueeze(-1)
                 batch_ref_v = traj_ref_v[batch_ofs:batch_l]
                 batch_old_logprob_v = old_logprob_v[batch_ofs:batch_l]
+
                 opt_crt.zero_grad()
                 value_v = crt_net(states_v)
                 loss_value_v = F.mse_loss(
@@ -233,6 +235,7 @@ if __name__ == "__main__":
                 opt_act.zero_grad()
                 mu_v = act_net(states_v)
                 logprob_pi_v = calc_logprob(mu_v, act_net.logstd, actions_v)
+                    
                 ratio_v = torch.exp(logprob_pi_v - batch_old_logprob_v)
                 surr_obj_v = batch_adv_v * ratio_v
                 c_ratio_v = torch.clamp(ratio_v,1.0 - PPO_EPS,1.0 + PPO_EPS)

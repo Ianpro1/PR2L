@@ -1,5 +1,6 @@
 #rendering contains classes for live-rendering of the agent and tools for neural network analysis (not yet implemented)
 import pygame
+import warnings
 import numpy as np
 try:
     import gymnasium as gym
@@ -99,7 +100,11 @@ def HandleFrame(frame, screen, screen_size, preprocessing=None):
 
 def init_display(outconn, screen_size=None, preprocessing=None):
 
+    warnings.warn("init_display() is deprecated. Use displayScreen() instead.")
     """
+    (DEPRECATED): displayScreen is prefered over init_display
+
+
     #default img format is rgb_array as Height, Width and Channels 
     #parameters-> outconn: receiving end of Pipeconnection (mp.Pipe())
 
@@ -282,3 +287,68 @@ class pltprint:
                     break
         else:
             print("(pltprint) Cannot plot {ndim}d array!")
+
+
+import cv2
+
+def displayScreen(outconn, upscale_factor : int = 1, preprocessing=None):
+    """
+    pygame screen that is used for rendering rgb_arrays.
+    parameters: 
+    outconn -> receiving end of mp.Pipe() connection. It expects np.ndarray of integer values (min: 0, max : 255)
+    
+    upscale_factor -> small arrays might not function properly with pygame surfaces. This parameter will do a cv2.resize with linear interpolation.
+    You can disable upscale_factor by passing 1.
+    
+    preprocessing -> A user-defined function for any extra preprocessing.
+
+    """
+    pygame.init()
+    
+    img = outconn.recv()
+    if preprocessing is not None:
+        img = preprocessing(img)
+    assert isinstance(img, np.ndarray)
+    assert len(img.shape) == 3
+ 
+    #handle channel position
+    channel_argmin = np.argmin(img.shape)
+    order = [id % 3 for id in range(channel_argmin+1, 3 + channel_argmin + 1)]
+    img = img.transpose((order))
+
+    #handle channel number
+
+    channel_size = np.min(img.shape)
+    assert channel_size == 1 or channel_size == 3
+
+    if (channel_size == 1):
+        img = np.repeat(img, 3, 2)
+
+    #upscale img (if required)
+    if (upscale_factor != 1):
+        img = cv2.resize(img, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_LINEAR)
+    
+    shape = img.shape
+    screen = pygame.display.set_mode(shape[:-1])
+
+    while(1):
+        screen.fill((255, 255, 255))
+        pygame.surfarray.blit_array(screen, img)
+        pygame.display.update()
+
+        #get new img
+        img = outconn.recv()
+
+        #handle processing
+        if preprocessing is not None:
+            img = preprocessing(img)
+        img = img.transpose((order))
+        if (channel_size == 1):
+            img = np.repeat(img, 3, 2)
+        if (upscale_factor != 1):
+            img = cv2.resize(img, None, fx=upscale_factor, fy=upscale_factor, interpolation=cv2.INTER_LINEAR)
+
+        for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    break
+    pygame.quit()

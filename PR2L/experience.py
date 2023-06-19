@@ -496,7 +496,7 @@ class EpisodeSource:
             actions, next_internal_states = self.agent(states, internal_states)
             
             internal_states = next_internal_states
-
+    
             for i, e in enumerate(self.envs):
                 obs, rew, done, trunc, info = e.step(actions[i])
 
@@ -505,7 +505,7 @@ class EpisodeSource:
                 if done:
                     obs, info = e.reset()
                     yield buffer[i]
-
+                    
                     if self.track_rewards:
                         tot_rew = 0.0
                         steps = 0
@@ -528,3 +528,44 @@ class EpisodeSource:
             self.tot_steps.clear()
         return res
 
+
+class FetchBuffer:
+    """
+    This class is a list with slightly different behavior.
+
+    currently defined methods: append, extend, __len__
+    
+    special functions: fetch, __iter__
+    fetch: returns a batch of fetch_size otherwise -> None
+    __iter__: iterates through buffer using fetch (infinite loop that yields fetch())
+
+    usage: if you want to store episodes but only get fixed size batches
+    """
+
+    def __init__(self, fetch_size):
+        self.buffer = []
+        self.fetch_size = fetch_size
+
+    def fetch(self):
+        """
+        returns a batch of fetch_size if the buffer is big enough else returns None and thus requires more samples to be pushed.
+        """
+        if (len(self.buffer) >= self.fetch_size):
+            feed = self.buffer[:self.fetch_size]
+            self.buffer = self.buffer[self.fetch_size:]
+            return feed
+        else:
+            return None
+        
+    def extend(self, x):
+        self.buffer.extend(x)
+    
+    def append(self, x):
+        self.buffer.append(x)
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def __iter__(self):
+        while(1):
+            yield self.fetch()

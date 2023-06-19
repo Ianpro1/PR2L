@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
     batch = []
     writer = tensorboard.SummaryWriter()
-
+    
     rewardbuffer = deque(maxlen=20)
     solved = 0.
     for idx, exp in enumerate(exp_source): #Agent is crashing
