@@ -82,7 +82,19 @@ class TargetNet:
 
 
 class Agent:
-    """Agent class required for all Experience processing classes"""
+    """Agent class required for all Experience processing classes
+    
+    The structure of __call__ must meet the following requirements: 
+    takes 2 inputs: actions and internal_state(s)
+
+    actions - list of individual action (a single action must still be passed into a list)
+    internal_states - list of individual internal_states (a single state must still be passed into a list)
+
+    __call__ returns -> actions, internal_states (both as lists)
+    
+    initial_state(): returns single internal_state (not in a list). 
+    NOTE: Default value of initial_state() is always None.
+    """
     def __call__(self):
         raise NotImplementedError
     

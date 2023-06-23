@@ -74,7 +74,7 @@ Therefore, if the gradients from log(p(action)) are positive the value would get
 
 Its then easy to see that if we're overconfident, we need to decrease the p(action) which is being done when V > Q and hence when Advantage value is negative.
 
-##cross-entropy -> sum(log(q(x)) * p(x)) where p(x) is the target distribution and q(x) the network's.
+##entropy -> sum(log(q(x)) * p(x)) where p(x) is the target distribution and q(x) the network's.
 
 #solution.
 

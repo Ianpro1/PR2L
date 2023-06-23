@@ -3,6 +3,8 @@
 import torch
 import numpy as np
 from PR2L import agent
+from PR2L.agent import float32_preprocessing
+from PR2L.experience import SingleExperience
 
 def unpack_batch(batch):
     """
@@ -190,3 +192,38 @@ def distr_projection(next_v_distr, rewards, not_dones, gamma : float, N_ATOMS : 
         #overwrite proj_distr
         proj_distr = resized_proj_distr
     return torch.FloatTensor(proj_distr).to(device)
+
+
+@torch.no_grad()
+def calc_gae(batch, value_net, GAMMA=0.99, GAE_LAMBDA = 0.95, device='cpu'):
+    """
+    Calculates generalized advantage extimator values.
+
+    returns: new_trajectory, adv_v, refs_q_v
+
+    NOTE: This function expects batches of namedtuple: SingleExperience 
+    and returns a batch with length reduced by 1.
+    """
+    assert isinstance(batch[0], SingleExperience)
+    states = [exp.state for exp in batch]
+    states = float32_preprocessing(states).to(device)
+
+    values = value_net(states)
+    values = values.squeeze(-1).cpu().data.numpy()
+    
+    new_trajectory = batch[:-1]
+    last_gae = 0
+    refs_q_v = []
+    adv_v = []
+    for exp, val, next_val in zip(reversed(batch[:-1]), reversed(values[:-1]), reversed(values[1:])):
+    
+        if exp.done:
+            last_gae = exp.reward - val
+        else:
+            gae = -val + exp.reward + next_val * GAMMA
+            last_gae = gae + last_gae * GAMMA * GAE_LAMBDA
+        
+        refs_q_v.append(last_gae + val)
+        adv_v.append(last_gae)
+
+    return new_trajectory, float32_preprocessing(list(reversed(adv_v))).to(device), float32_preprocessing(list(reversed(refs_q_v))).to(device)

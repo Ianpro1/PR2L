@@ -1,3 +1,6 @@
+#the script may not sample experiences properly (still works)
+#Also, using a single environment is better and more efficient (the implementation here is technically wrong)
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -168,7 +171,7 @@ if __name__ == "__main__":
     agent = A2C(act_net, device)
     exp_source = iter(expSource(envs, agent))
     render_source = iter(playSource(render_env, agent))
-
+    
     trajectory = []
     opt_crt = torch.optim.Adam(crt_net.parameters(), LEARNING_RATE_CRITIC)
     opt_act = torch.optim.Adam(act_net.parameters(), LEARNING_RATE_ACTOR)
@@ -235,7 +238,7 @@ if __name__ == "__main__":
                 opt_act.zero_grad()
                 mu_v = act_net(states_v)
                 logprob_pi_v = calc_logprob(mu_v, act_net.logstd, actions_v)
-                    
+
                 ratio_v = torch.exp(logprob_pi_v - batch_old_logprob_v)
                 surr_obj_v = batch_adv_v * ratio_v
                 c_ratio_v = torch.clamp(ratio_v,1.0 - PPO_EPS,1.0 + PPO_EPS)

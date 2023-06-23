@@ -8,9 +8,10 @@
 from collections import namedtuple, deque
 from .agent import Agent
 import numpy as np
+import warnings
 
 Experience = namedtuple("Experience", ("state", "action", "reward", "next"))
-
+SingleExperience = namedtuple('SingleExperience', ('state', 'action', 'reward', 'done'))
 MemorizedExperience = namedtuple("MemorizedExperience", ("state", "action", "reward", "next", "memory")) 
 
 class SimpleReplayBuffer:
@@ -125,8 +126,9 @@ class ExperienceSource(DequeSource):
 
     NOTE: Its a common practice in reinforcement learning to individually sample the agent's actions for each environment.
     This class achieves better perfomance by sampling all actions at once for every environment. Hence, when an environment is
-    terminated before the others, the class will yield all the experiences that were stored for this environment. The user should
-    therefore expect every environment to be out of sync.
+    terminated before the others, the class will yield all the experiences that were stored for this environment. 
+    In other words, when done=True for a given environment, the following n_steps-1 experiences to be yield will come from the same environment.
+    Therefore, the user shouldn't expect environments to be synchronized (at a near state/timeframe from the others).
 
 
     -> Experience = namedtuple("Experience", ("state", "action", "reward", "next"))
@@ -134,7 +136,11 @@ class ExperienceSource(DequeSource):
 
     def __init__(self, env, agent, n_steps=2, GAMMA=0.99, track_rewards=True):
         assert isinstance(agent, Agent)
-        
+        try:
+            assert n_steps >= 2
+        except:
+            raise AssertionError("For n_steps smaller than 2, use SingleExperienceSource class instead.")
+
         self.n_steps = n_steps
 
         if isinstance(env, (list, tuple)):
@@ -293,7 +299,6 @@ class ScarsedExperienceSource(DequeSource):
                     exp = Experience(_states[i].popleft(), _actions[i].popleft(), _rewards[i].popleft(), nextobs)
                     yield exp 
 
-
 class SimpleDecayBuffer(DequeSource):
     """
     DecayBuffer stores experiences that are pushed to it and decays them to n_steps. 
@@ -382,7 +387,6 @@ class SimpleDecayBuffer(DequeSource):
         self.buffer.clear()
         return samples
 
-
 class DequeDecayBuffer(DequeSource):
     """
     DequeDecayBuffer works the same as SimpleDecayBuffer however it does not store the experiences and instead of using a list, it uses a deque.
@@ -456,70 +460,42 @@ class DequeDecayBuffer(DequeSource):
                 yield self.buffer.popleft()
             else:
                 yield None
- 
-SingleExperience = namedtuple('SingleExperience', ('state', 'action', 'reward', 'done'))
 
 class EpisodeSource:
     """
-    A generator class that returns a tuple of SingleExperience representing an episode.
-    NOTE: Unlike other Source class, the rewards are not decayed.
-
-    -> SingleExperience = namedtuple('SingleExperience', ('state', 'action', 'reward', 'done'))
-
+    A class that returns full trajectory of namedtuple: SingleExperience.
     """
-    def __init__(self, envs, agent, track_rewards=True):
+    def __init__(self, env, agent, track_rewards = True):
         assert isinstance(agent, Agent)
-        if isinstance(envs, (tuple, list)):
-            self.envs = envs
-        else:
-            self.envs = [envs]
-        self.agent = agent
-
+        assert hasattr(env, 'step') and callable(getattr(env, 'step'))
+        assert hasattr(env, 'reset') and callable(getattr(env, 'reset'))
         self.track_rewards = track_rewards
-
+        self.env = env
+        self.agent = agent
         if self.track_rewards:
             self.tot_rewards = []
             self.tot_steps = []
 
     def __iter__(self):
-        buffer = []
-        states = []
-        internal_states = []
-
-        for e in self.envs:
-            buffer.append([])
-            states.append(e.reset()[0])
-            internal_states.append(self.agent.initial_state())
-        
         while (1):
+            obs, _ = self.env.reset()
+            internal_state = [self.agent.initial_state()]
+            episode = []
+            done = False
+            while (not done):
+                action, internal_state = self.agent([obs], internal_state)
+                action = action[0]
+                next_obs, rew, done, trunc, info = self.env.step(action)
+                episode.append(SingleExperience(obs, action, rew, done))
+                obs = next_obs
 
-            actions, next_internal_states = self.agent(states, internal_states)
-            
-            internal_states = next_internal_states
-    
-            for i, e in enumerate(self.envs):
-                obs, rew, done, trunc, info = e.step(actions[i])
+            if self.track_rewards:
+                rewards = [exp.reward for exp in episode]
+                self.tot_rewards.append(sum(rewards))
+                self.tot_steps.append(len(rewards))
 
-                buffer[i].append(SingleExperience(states[i], actions[i], rew, done))
+            yield episode
 
-                if done:
-                    obs, info = e.reset()
-                    yield buffer[i]
-                    
-                    if self.track_rewards:
-                        tot_rew = 0.0
-                        steps = 0
-                        for exp in buffer[i]:
-                            tot_rew += exp.reward
-                            steps += 1
-                        self.tot_rewards.append(tot_rew)
-                        self.tot_steps.append(steps)
-
-                    buffer[i].clear()
-                    internal_states[i] = self.agent.initial_state()
-
-                states[i] = obs
-    
     def pop_rewards_steps(self):
         assert self.track_rewards is True
         res = list(zip(self.tot_rewards, self.tot_steps))
@@ -528,23 +504,26 @@ class EpisodeSource:
             self.tot_steps.clear()
         return res
 
-
 class FetchBuffer:
     """
     This class is a list with slightly different behavior.
 
-    currently defined methods: append, extend, __len__
+    currently defined methods: append, extend, __len__, clear
     
     special functions: fetch, __iter__
-    fetch: returns a batch of fetch_size otherwise -> None
-    __iter__: iterates through buffer using fetch (infinite loop that yields fetch())
-
-    usage: if you want to store episodes but only get fixed size batches
+    fetch: returns a batch of size=fetch_size from the oldest set of samples stored in buffer. However, if the buffer is too small -> None
+    __iter__: iterates through buffer using fetch, meaning there may be remaining experiences in the buffer.
+    __str__: prints get_dict()
+    get_dict(): a dictionnary with buffer information such as 'FetchBuffer', 'FullBuffer', 'fetch_size' and 'remainder_size' 
+    usage: if you want to store ordered trajectory of experiences but only get fixed size batches
     """
-
+    
     def __init__(self, fetch_size):
         self.buffer = []
         self.fetch_size = fetch_size
+
+    def clear(self):
+        self.buffer.clear()
 
     def fetch(self):
         """
@@ -568,4 +547,80 @@ class FetchBuffer:
 
     def __iter__(self):
         while(1):
-            yield self.fetch()
+            batch = self.fetch()
+            if batch is None:
+                break
+            yield batch
+    
+    def __str__(self):
+        return str(self.get_dict())
+    
+    def get_dict(self):
+        remainder = len(self.buffer) % self.fetch_size
+        last = len(self.buffer) - remainder
+        bufferdict = {"FetchBuffer": self.buffer[:last], "FullBuffer": self.buffer, "fetch_size":self.fetch_size, "remainder_size":remainder}
+        return bufferdict
+   
+class SingleExperienceSource:
+    """
+    Similar to ExperienceSource but returns type[SingleExperience] instead of the usual type[Experience] (namedtuple).
+    NOTE: the order by which samples are sampled matches that of the environments, which is not true of ExperienceSource (when done=True the following n_steps-1 experiences are from the same environment).
+    """
+    def __init__(self, envs, agent, track_rewards=True):
+        if isinstance(envs, (tuple, list)):
+            self.envs = envs
+        else:
+            self.envs = [envs]
+
+        assert isinstance(agent, Agent)
+        self.agent = agent
+        self.track_rewards = track_rewards
+
+        if track_rewards:
+            self.tot_rewards = [0.0]*len(self.envs)
+            self.tot_steps = [0]*len(self.envs)
+            self.rewards_buffer = []
+            self.steps_buffer = []
+
+ 
+    def __iter__(self):
+        cur_obs = []
+        internal_states = []
+        for e in self.envs:
+            cur_obs.append(e.reset()[0])
+            internal_states.append(self.agent.initial_state())
+        
+        while(1):
+            actions, internal_states = self.agent(cur_obs, internal_states)
+
+            for i, e in enumerate(self.envs):
+                obs, rew, done, trunc, info = e.step(actions[i])
+
+
+                exp = SingleExperience(cur_obs[i], actions[i], rew, done)
+                yield exp
+
+                if done:
+                    if self.track_rewards:
+                        self.tot_rewards[i] += rew
+                        self.tot_steps[i] += 1
+                        self.steps_buffer.append(self.tot_steps[i])
+                        self.rewards_buffer.append(self.tot_rewards[i])
+                        self.tot_rewards[i] = 0.0
+                        self.tot_steps[i] = 0
+
+                    cur_obs[i] = e.reset()[0]
+                else:
+                    if self.track_rewards:
+                        self.tot_rewards[i] += rew
+                        self.tot_steps[i] += 1
+                    cur_obs[i] = obs
+
+    def pop_rewards_steps(self):
+        assert self.track_rewards is True
+        res = list(zip(self.rewards_buffer, self.steps_buffer))
+        if res:
+            self.rewards_buffer.clear()
+            self.steps_buffer.clear()
+        return res
+
