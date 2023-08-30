@@ -1,6 +1,6 @@
 #the script may not sample experiences properly (still works)
 #Also, using a single environment is better and more efficient (the implementation here is technically wrong)
-
+#PPO_Linear is a much better example
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -238,7 +238,7 @@ if __name__ == "__main__":
                 opt_act.zero_grad()
                 mu_v = act_net(states_v)
                 logprob_pi_v = calc_logprob(mu_v, act_net.logstd, actions_v)
-
+                
                 ratio_v = torch.exp(logprob_pi_v - batch_old_logprob_v)
                 surr_obj_v = batch_adv_v * ratio_v
                 c_ratio_v = torch.clamp(ratio_v,1.0 - PPO_EPS,1.0 + PPO_EPS)

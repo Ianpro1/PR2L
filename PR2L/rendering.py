@@ -306,6 +306,8 @@ def displayScreen(outconn, upscale_factor : int = 1, preprocessing=None):
     pygame.init()
     
     img = outconn.recv()
+    assert img is not None
+    
     if preprocessing is not None:
         img = preprocessing(img)
     assert isinstance(img, np.ndarray)
@@ -338,7 +340,8 @@ def displayScreen(outconn, upscale_factor : int = 1, preprocessing=None):
 
         #get new img
         img = outconn.recv()
-
+        if img is None:
+            break
         #handle processing
         if preprocessing is not None:
             img = preprocessing(img)
