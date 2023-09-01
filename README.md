@@ -25,5 +25,6 @@ A Deep Deterministic Policy Gradient agent playing Tosser: a MuJoCo task/environ
 >pip install ./PR2L
 
 _Versions and Dependencies (NOT INCLUDED IN PACKAGE): PyTorch Cuda 11.6, Python 3.10.8, gym 0.26.2, Pygame 2.1.2 and gymnasium 0.27.1_ (gymnasium is recommanded over gym)
-
 <sup>*Most dependencies will work at different versions with the exception of gym/gymnasium (the library handles truncated flags [Not Yet], therefore older versions are not supported.)</sup>
+
+Final note: This library is originally based on the PTAN Library by Maxim Lapan: https://github.com/Shmuma, which was out of date with the latest features of gym/gymnasium. Therefore, some functions here may also be found in PTAN however most have been replaced since the creation of this library. 
