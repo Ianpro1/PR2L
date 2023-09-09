@@ -9,6 +9,8 @@ except ImportError:
 
 import numpy as np
 import pygame
+import warnings
+import random
 
 class DeterministicObservations:
     """
@@ -340,3 +342,64 @@ class CustomControllerCallback:
         self.env.reset()
 
 #TODO environment that verifies the contents of exp_source and or buffer
+
+
+class VectorSampler:
+    """
+    A class that creates vector samples which are stored in a training and testing batch.
+    The user can then fetch a minibatch of samples using fetch_train or fetch_test. 
+    """
+    def __init__(self, _range , size : int, train_test_ratio : float):
+        _range = np.array(_range, dtype=np.float32)  
+        assert(train_test_ratio <= 1 and train_test_ratio >= 0)
+
+        self.train_size = round(size * train_test_ratio)
+        self.test_size = size - self.train_size
+        self.train_test_ratio = train_test_ratio
+        self.training_batch = None
+        self.testing_batch = None
+
+        for sub_range in _range:
+            if(len(sub_range) != 2):
+                wrong_dimension_w = "Parameter at position 1 with length of %d must instead have length %d" % (len(_range), 2)
+                warnings.warn(wrong_dimension_w)
+            
+            scale = max(sub_range) - min(sub_range)
+            batch = np.random.random(size) * scale + min(sub_range)
+            
+            indices = list(range(size))
+            random.shuffle(indices)
+            if self.training_batch is None:
+                self.training_batch = batch[indices[:self.train_size]].reshape((-1, 1))
+                self.testing_batch = batch[indices[self.train_size:]].reshape((-1, 1))     
+            else:
+                self.training_batch = np.concatenate((self.training_batch, batch[indices[:self.train_size]].reshape((-1, 1))), axis=1)
+                self.testing_batch = np.concatenate((self.testing_batch, batch[indices[self.train_size:]].reshape((-1, 1))), axis=1)
+
+    def fetch(self, sample_size : int, noise_scale = 0, is_test = False):
+        if is_test:
+            if(sample_size >= self.test_size):
+                output = self.testing_batch[:]
+            indices = np.random.randint(0, self.test_size-1 , sample_size)
+            output = self.testing_batch[indices]
+        else:
+            if(sample_size >= self.train_size):
+                output = self.training_batch[:]
+            indices = np.random.randint(0, self.train_size-1 , sample_size)
+            output = self.training_batch[indices]
+        
+        if noise_scale != 0:
+            noise_matrix = np.random.random_sample(size=output.shape) - 0.5
+            noise_matrix *= noise_scale
+            output = output + noise_matrix
+
+        return output        
+
+    def get_sizeDict(self):
+        if self.size_dict is None:
+            self.size_dict = {"training_size" : self.train_size, "testing_size" : self.test_size, "batch_size" : self.test_size + self.train_size}
+        return self.size_dict
+    
+    def __len__(self):
+        size_d = self.get_sizeDict()
+        return size_d["batch_size"]
