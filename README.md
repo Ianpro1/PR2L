@@ -1,4 +1,4 @@
-# PR2L (A Python Reinforcement Learning Library)
+# PR2L
 
 This is a repository for a small reinforcement learning library I made while reading DEEP REINFORCEMENT LEARNING HANDS-ON by Maxim Lapan (https://github.com/Shmuma). The motivation for this library comes from PTAN (the RL library used in the book) being out of date with the latest features of gym/gymnasium. Therefore, some functions here may also be found in PTAN however most have been replaced since the creation of this library, as most of the core features found in PR2L have since diverged from PTAN's core features. Therefore, expect this library to be similar to PTAN with extra features for rendering environments and aiding training. I've also left a few RL agent scripts in the repository as examples.
 
