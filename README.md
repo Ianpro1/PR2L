@@ -1,6 +1,6 @@
 # PR2L
 
-This is a repository for a small reinforcement learning library I made while reading DEEP REINFORCEMENT LEARNING HANDS-ON by Maxim Lapan (https://github.com/Shmuma). The motivation for this library comes from PTAN (the RL library used in the book) being out of date with the latest features of gym/gymnasium. Therefore, expect this library to be similar to PTAN with extra features for rendering environments and aiding training. A few functions here may be found in PTAN however most have been replaced since the creation of this library. I've also left a few RL agent scripts in the repository as examples.
+This is a repository for a small reinforcement learning library I made while reading DEEP REINFORCEMENT LEARNING HANDS-ON by Maxim Lapan (https://github.com/Shmuma). The motivation for this library comes from PTAN (the RL library used in the book) being out of date with the latest features of gym/gymnasium and personal use. Therefore, expect this library to be similar to PTAN with extra features for rendering environments and aiding training. A few functions here may be found in PTAN however most have been replaced since the creation of this library. I've also left a few RL agent scripts in the repository as examples.
 
 Currently, PR2L has a total of 6 modules: training (new), agent, experience, playground, rendering, and utilities. Each module file includes a brief description of its usage.
 ******
