@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import numpy as np
 import copy
 
+#ActionSelector, ArgmaxSelector, ProbabilitySelector, EpsilonGreedySelector, and TargetNet are classes taken from https://github.com/Shmuma/ptan/blob/master/ptan
+
 class ActionSelector:
     """
     Action Selector class required by some agent classes
