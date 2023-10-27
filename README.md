@@ -5,8 +5,8 @@ This is a repository for a small reinforcement learning library I made while rea
 Currently, PR2L has 6 modules: training (new), agent, experience, playground, rendering, and utilities. Each module file includes a brief description of its usage.
 
 *The agent module is PTAN's: actions and agent modules but all in one.
-
 *Also, the experience module is very different from the one in PTAN (ExperienceSource is the equivalent of ExperienceSourceFirstLast)
+
 ******
 RL SCRIPTS:
 
