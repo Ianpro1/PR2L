@@ -111,7 +111,7 @@ class DequeSource:
             self.tot_step[env_id] = 0
     
     def pop_rewards_steps(self):
-        assert self.track_rewards is True
+        assert self.track_rewards == True
         res = list(zip(self.tot_rewards, self.tot_steps))
         if res:
             self.tot_rewards.clear()
@@ -497,7 +497,7 @@ class EpisodeSource:
             yield episode
 
     def pop_rewards_steps(self):
-        assert self.track_rewards is True
+        assert self.track_rewards == True
         res = list(zip(self.tot_rewards, self.tot_steps))
         if res:
             self.tot_rewards.clear()
@@ -617,7 +617,7 @@ class SingleExperienceSource:
                     cur_obs[i] = obs
 
     def pop_rewards_steps(self):
-        assert self.track_rewards is True
+        assert self.track_rewards == True
         res = list(zip(self.rewards_buffer, self.steps_buffer))
         if res:
             self.rewards_buffer.clear()
